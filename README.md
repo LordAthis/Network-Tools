@@ -82,3 +82,8 @@ Változatok leírása:
 
 
 
+----------------------------------------------------------------------------
+Későbbi fejlesztéseknél a Windowsos verziókhoz "*.bat" fájlok mellé bekerülnek majd a modernebb "*.cmd" fájlok is, amik a fejlettebb parancsokat is támogatják, illetve a PowerShell szkriptek "*.ps1" is.
+
+
+
