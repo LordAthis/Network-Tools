@@ -1,46 +1,46 @@
 #Requires -Version 5.1
 <#
-    NetworkDiag MAX v2 - Maximálisan agresszív LAN + mobilnet diagnosztika
-    Cél: semmi se maradjon rejtve - ASIC minerek, "néma" switchek, portolt/tiltott
-         eszközök, lassú válaszok, ismert mining pool-okra menő kapcsolatok, mobilnet.
+    NetworkDiag MAX v2 - Maximalisan agressziv LAN + mobilnet diagnosztika
+    Cel: semmi se maradjon rejtve - ASIC minerek, "nema" switchek, portolt/tiltott
+         eszkozok, lassu valaszok, ismert mining pool-okra meno kapcsolatok, mobilnet.
 
-    Használat:
-        - Küldd el ezt a fájlt (és mellé a datas\ mappát) a felhasználónak
-        - Jobb klikk -> "Futtatás PowerShell-lel" (vagy dupla katt, ha .ps1 társítva van)
-        - A script magától kér admin jogot
-        - A futás végén a script melletti LOG mappában keletkező .txt fájlt kell visszaküldeni
-        - A script a végén rákérdez, hogy megnyissa-e a LOG mappát (alapból Igen -> csak Entert kell nyomni)
+    Hasznalat:
+        - Kuldd el ezt a fajlt (es melle a datas\ mappat) a felhasznalonak
+        - Jobb klikk -> "Futtatas PowerShell-lel" (vagy dupla katt, ha .ps1 tarsitva van)
+        - A script magatol ker admin jogot
+        - A futas vegen a script melletti LOG mappaban keletkezo .txt fajlt kell visszakuldeni
+        - A script a vegen rakerdez, hogy megnyissa-e a LOG mappat (alapbol Igen -> csak Entert kell nyomni)
 
-    Kimenet: <script mappája>\LOG\NetworkDiag_MAX_YYYYMMDD_HHMMSS.txt
+    Kimenet: <script mappaja>\LOG\NetworkDiag_MAX_YYYYMMDD_HHMMSS.txt
 
-    Konfigurációs fájlok (nem kötelezőek - ha hiányoznak, a script automatikusan
-    létrehozza őket alapértelmezett tartalommal az első futáskor), a script melletti
-    datas\ mappában:
-        datas\iplist.json         - vizsgálandó fix alhálók, JSON tömbként
+    Konfiguracios fajlok (nem kotelezoek - ha hianyoznak, a script automatikusan
+    letrehozza oket alapertelmezett tartalommal az elso futaskor), a script melletti
+    datas\ mappaban:
+        datas\iplist.json         - vizsgalando fix alhalok, JSON tombkent
                                      pl.: ["192.168.0.0/24","192.168.8.0/24","10.0.5.0/24"]
-        datas\minerpoollist.json  - ismert mining pool kulcsszavak (hostname/PTR egyezéshez)
+        datas\minerpoollist.json  - ismert mining pool kulcsszavak (hostname/PTR egyezeshez)
                                      pl.: ["pool","stratum","nanopool","antpool"]
-    Ezek szerkesztésével a keresési tartomány és a pool-felismerés bővíthető
-    a script kódjának módosítása nélkül.
+    Ezek szerkesztesevel a keresesi tartomany es a pool-felismeres bovitheto
+    a script kodjanak modositasa nelkul.
 
-    Megjegyzés: a LOG\ mappát érdemes .gitignore-ba tenni (személyes hálózati adatokat,
-    IP-ket, MAC címeket tartalmaz) - a datas\ mappa viszont mehet verziókezelőbe.
+    Megjegyzes: a LOG\ mappat erdemes .gitignore-ba tenni (szemelyes halozati adatokat,
+    IP-ket, MAC cimeket tartalmaz) - a datas\ mappa viszont mehet verziokezelobe.
 #>
 
 param(
     [switch]$NoElevation,
-    [int]$ThrottleLimit = 64,       # párhuzamos ping-sweep szálak
-    [int]$PortThrottleLimit = 120,  # párhuzamos portscan szálak
+    [int]$ThrottleLimit = 64,       # parhuzamos ping-sweep szalak
+    [int]$PortThrottleLimit = 120,  # parhuzamos portscan szalak
     [string[]]$ExtraSubnets = @(),  # pl. -ExtraSubnets "10.0.0.0/24","172.16.5.0/24"
-    [string]$IpListPath = "$PSScriptRoot\datas\iplist.json",           # vizsgálandó alhálók listája (JSON tömb) - a script melletti datas\ mappában
-    [string]$MinerPoolListPath = "$PSScriptRoot\datas\minerpoollist.json",  # ismert mining pool kulcsszavak (JSON tömb) - a script melletti datas\ mappában
-    [string]$LogDir = "$PSScriptRoot\LOG"  # a kimeneti log fájlok mappája - a script melletti LOG\ mappa
+    [string]$IpListPath = "$PSScriptRoot\datas\iplist.json",           # vizsgalando alhalok listaja (JSON tomb) - a script melletti datas\ mappaban
+    [string]$MinerPoolListPath = "$PSScriptRoot\datas\minerpoollist.json",  # ismert mining pool kulcsszavak (JSON tomb) - a script melletti datas\ mappaban
+    [string]$LogDir = "$PSScriptRoot\LOG"  # a kimeneti log fajlok mappaja - a script melletti LOG\ mappa
 )
 
-# ==================== 0. SCRIPT ELÉRÉSI ÚT (irm | iex védelem) ====================
+# ==================== 0. SCRIPT ELERESI UT (irm | iex vedelem) ====================
 $ScriptPath = $MyInvocation.MyCommand.Path
 
-# ==================== JOGOSULTSÁG EMELÉS ====================
+# ==================== JOGOSULTSAG EMELES ====================
 function Test-Admin {
     $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
     $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
@@ -49,12 +49,12 @@ function Test-Admin {
 
 if (-not $NoElevation -and -not (Test-Admin)) {
     if ($ScriptPath) {
-        Write-Host "Jogosultság emelés szükséges. Újraindítás adminisztrátorként..." -ForegroundColor Yellow
+        Write-Host "Jogosultsag emeles szukseges. Ujrainditas adminisztratorkent..." -ForegroundColor Yellow
         Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -NoElevation -ThrottleLimit $ThrottleLimit -PortThrottleLimit $PortThrottleLimit -IpListPath `"$IpListPath`" -MinerPoolListPath `"$MinerPoolListPath`" -LogDir `"$LogDir`""
         exit
     } else {
-        Write-Host "FIGYELEM: A script nem .ps1 fájlból fut (pl. irm | iex), ezért automatikus admin-emelés nem lehetséges." -ForegroundColor Red
-        Write-Host "Mentsd el .ps1 fájlba és úgy indítsd 'Futtatás PowerShell-lel adminisztrátorként' -val, különben egyes tesztek hiányosak lesznek (eseménynapló, adapter statisztika)." -ForegroundColor Yellow
+        Write-Host "FIGYELEM: A script nem .ps1 fajlbol fut (pl. irm | iex), ezert automatikus admin-emeles nem lehetseges." -ForegroundColor Red
+        Write-Host "Mentsd el .ps1 fajlba es ugy inditsd 'Futtatas PowerShell-lel adminisztratorkent' -val, kulonben egyes tesztek hianyosak lesznek (esemenynaplo, adapter statisztika)." -ForegroundColor Yellow
     }
 }
 
@@ -80,30 +80,30 @@ function Write-Block {
     Write-Host $Text
 }
 
-Write-Log "=== MAXIMÁLIS HÁLÓZATI DIAGNOSZTIKA v2 INDUL ===" "Cyan"
-Write-Log "Gép: $env:COMPUTERNAME | Felhasználó: $env:USERNAME | Idő: $(Get-Date)"
-Write-Log "Kimeneti fájl: $OutFile"
-Write-Log "IP/subnet lista fájl: $IpListPath"
-Write-Log "Mining pool kulcsszó lista fájl: $MinerPoolListPath"
-Write-Log "Cél: semmi se maradjon rejtve (ASIC miner, néma switch, lassú/portolt eszköz, mobilnet, mining pool kapcsolatok)"
+Write-Log "=== MAXIMALIS HALOZATI DIAGNOSZTIKA v2 INDUL ===" "Cyan"
+Write-Log "Gep: $env:COMPUTERNAME | Felhasznalo: $env:USERNAME | Ido: $(Get-Date)"
+Write-Log "Kimeneti fajl: $OutFile"
+Write-Log "IP/subnet lista fajl: $IpListPath"
+Write-Log "Mining pool kulcsszo lista fajl: $MinerPoolListPath"
+Write-Log "Cel: semmi se maradjon rejtve (ASIC miner, nema switch, lassu/portolt eszkoz, mobilnet, mining pool kapcsolatok)"
 Write-Log ""
 
-# ==================== 0/B. POWERSHELL VERZIÓ ÉS KÉPESSÉGEK ====================
-Write-Log "=== 0. POWERSHELL VERZIÓ ÉS KÖRNYEZET ===" "Cyan"
+# ==================== 0/B. POWERSHELL VERZIO ES KEPESSEGEK ====================
+Write-Log "=== 0. POWERSHELL VERZIO ES KORNYEZET ===" "Cyan"
 $PSVer = $PSVersionTable.PSVersion
 $IsPS6Plus = $PSVer.Major -ge 6
-Write-Log "PowerShell verzió: $($PSVer.ToString()) | Edition: $($PSVersionTable.PSEdition)"
+Write-Log "PowerShell verzio: $($PSVer.ToString()) | Edition: $($PSVersionTable.PSEdition)"
 if ($IsPS6Plus) {
     Write-Log "OS: $($PSVersionTable.OS)"
     if (-not $IsWindows) {
-        Write-Log "Ez a script csak Windows rendszeren futtatható (Windows-specifikus cmdlet-eket használ). Kilépés." "Red"
+        Write-Log "Ez a script csak Windows rendszeren futtathato (Windows-specifikus cmdlet-eket hasznal). Kilepes." "Red"
         $Log | Out-File -FilePath $OutFile -Encoding UTF8
         exit
     }
 }
-Write-Log "Admin jogosultság: $(Test-Admin)"
+Write-Log "Admin jogosultsag: $(Test-Admin)"
 
-# Képesség-detektálás - hogy tudjuk, mit tudunk kihasználni
+# Kepesseg-detektalas - hogy tudjuk, mit tudunk kihasznalni
 $Cap = [ordered]@{
     NetAdapter        = [bool](Get-Command Get-NetAdapter -ErrorAction SilentlyContinue)
     NetIPAddress      = [bool](Get-Command Get-NetIPAddress -ErrorAction SilentlyContinue)
@@ -114,14 +114,14 @@ $Cap = [ordered]@{
     WinEvent          = [bool](Get-Command Get-WinEvent -ErrorAction SilentlyContinue)
 }
 foreach ($k in $Cap.Keys) {
-    Write-Log "  Elérhető: $k -> $($Cap[$k])"
+    Write-Log "  Elerheto: $k -> $($Cap[$k])"
 }
 Write-Log ""
 
-# ==================== SEGÉDFÜGGVÉNYEK ====================
+# ==================== SEGEDFUGGVENYEK ====================
 
-# --- .NET alapú ping teszt: verzió-független, nem használja a Test-Connection
-#     -TimeoutSeconds paraméterét (az csak PS 6+ alatt létezik, 5.1-nél hibát dob!)
+# --- .NET alapu ping teszt: verzio-fuggetlen, nem hasznalja a Test-Connection
+#     -TimeoutSeconds parameteret (az csak PS 6+ alatt letezik, 5.1-nel hibat dob!)
 function Test-PingHost {
     param(
         [string]$TargetIP,
@@ -164,8 +164,8 @@ function Test-PingHost {
     }
 }
 
-# --- Könnyűsúlyú, szál (runspace) alapú párhuzamosítás Start-Job helyett.
-#     Sokkal kevesebb erőforrást használ, mint egy külön process/job elem.
+# --- Konnyusulyu, szal (runspace) alapu parhuzamositas Start-Job helyett.
+#     Sokkal kevesebb eroforrast hasznal, mint egy kulon process/job elem.
 function Invoke-Parallel {
     param(
         [Parameter(Mandatory)][array]$InputItems,
@@ -202,7 +202,7 @@ function Invoke-Parallel {
     return $results
 }
 
-# --- IP + prefix -> hálózati CIDR
+# --- IP + prefix -> halozati CIDR
 function Get-NetworkCidr {
     param([string]$IPAddress, [int]$PrefixLength)
     try {
@@ -219,7 +219,7 @@ function Get-NetworkCidr {
     } catch { return $null }
 }
 
-# --- CIDR -> host IP lista (max ~1022 host, biztonsági korlát)
+# --- CIDR -> host IP lista (max ~1022 host, biztonsagi korlat)
 function Get-SubnetHosts {
     param([string]$NetworkCidr)
     try {
@@ -231,7 +231,7 @@ function Get-SubnetHosts {
         $hostBits = 32 - $prefix
         $numHosts = [math]::Pow(2, $hostBits) - 2
         if ($numHosts -lt 1) { $numHosts = 0 }
-        if ($numHosts -gt 1022) { $numHosts = 1022 }  # biztonsági korlát (kb. egy /22-nyi)
+        if ($numHosts -gt 1022) { $numHosts = 1022 }  # biztonsagi korlat (kb. egy /22-nyi)
         $ips = New-Object System.Collections.Generic.List[string]
         for ($i = 1; $i -le $numHosts; $i++) {
             $hostInt = $networkInt + $i
@@ -243,9 +243,9 @@ function Get-SubnetHosts {
     } catch { return @() }
 }
 
-# --- Külső JSON fájlból listát betöltő segédfüggvény.
-#     Ha a fájl nem létezik, létrehozza az alapértelmezett tartalommal (első futáskor sem hal el),
-#     ha létezik de hibás/üres, az alapértelmezett listával fut tovább.
+# --- Kulso JSON fajlbol listat betolto segedfuggveny.
+#     Ha a fajl nem letezik, letrehozza az alapertelmezett tartalommal (elso futaskor sem hal el),
+#     ha letezik de hibas/ures, az alapertelmezett listaval fut tovabb.
 function Get-JsonList {
     param(
         [string]$Path,
@@ -258,39 +258,39 @@ function Get-JsonList {
             $data = $raw | ConvertFrom-Json -ErrorAction Stop
             $list = @($data) | Where-Object { $_ -and $_.ToString().Trim() -ne "" }
             if ($list.Count -gt 0) {
-                Write-Log "$Label betöltve fájlból: $Path ($($list.Count) elem)" "Green"
+                Write-Log "$Label betoltve fajlbol: $Path ($($list.Count) elem)" "Green"
                 return $list
             } else {
-                Write-Log "$Label fájl üres vagy érvénytelen ($Path) - alapértelmezett lista használva." "Yellow"
+                Write-Log "$Label fajl ures vagy ervenytelen ($Path) - alapertelmezett lista hasznalva." "Yellow"
                 return $DefaultValue
             }
         } catch {
-            Write-Log "$Label fájl beolvasási hiba ($Path): $_ - alapértelmezett lista használva." "Red"
+            Write-Log "$Label fajl beolvasasi hiba ($Path): $_ - alapertelmezett lista hasznalva." "Red"
             return $DefaultValue
         }
     } else {
-        Write-Log "$Label fájl nem található ($Path) - létrehozom alapértelmezett tartalommal." "Yellow"
+        Write-Log "$Label fajl nem talalhato ($Path) - letrehozom alapertelmezett tartalommal." "Yellow"
         try {
             $dir = Split-Path $Path -Parent
             if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
             $DefaultValue | ConvertTo-Json | Out-File -FilePath $Path -Encoding UTF8
-            Write-Log "Alapértelmezett $Label fájl létrehozva: $Path - ezt szerkesztve bővítheted legközelebb, kód módosítása nélkül."
+            Write-Log "Alapertelmezett $Label fajl letrehozva: $Path - ezt szerkesztve bovitheted legkozelebb, kod modositasa nelkul."
         } catch {
-            Write-Log "Nem sikerült létrehozni a(z) $Label fájlt ($Path): $_ - csak memóriában, alapértelmezett listával fut tovább." "Red"
+            Write-Log "Nem sikerult letrehozni a(z) $Label fajlt ($Path): $_ - csak memoriaban, alapertelmezett listaval fut tovabb." "Red"
         }
         return $DefaultValue
     }
 }
 
-# --- Ismert mining pool kulcsszavak (hostname / PTR alapú felismeréshez)
-#     Fájlból töltve: /datas/minerpoollist.json (JSON tömb, pl. ["pool","stratum","nanopool", ...])
-#     Ha nincs ilyen fájl, a script létrehozza az alábbi alapértelmezett tartalommal.
+# --- Ismert mining pool kulcsszavak (hostname / PTR alapu felismereshez)
+#     Fajlbol toltve: /datas/minerpoollist.json (JSON tomb, pl. ["pool","stratum","nanopool", ...])
+#     Ha nincs ilyen fajl, a script letrehozza az alabbi alapertelmezett tartalommal.
 $DefaultMiningPoolKeywords = @(
     "pool","stratum","nanopool","ethermine","antpool","f2pool","viabtc","poolin",
     "2miners","herominers","unmineable","hiveon","luxor","slushpool","emcd",
     "btc.com","foundryusa","binance","ocean.xyz","kryptex","mining"
 )
-$MiningPoolKeywords = Get-JsonList -Path $MinerPoolListPath -DefaultValue $DefaultMiningPoolKeywords -Label "Mining pool kulcsszó lista"
+$MiningPoolKeywords = Get-JsonList -Path $MinerPoolListPath -DefaultValue $DefaultMiningPoolKeywords -Label "Mining pool kulcsszo lista"
 
 function Test-MiningIndicator {
     param([string]$HostnameOrText)
@@ -302,7 +302,7 @@ function Test-MiningIndicator {
 }
 
 # ==================== 1. ALAP ADAPTER + IP ====================
-Write-Log "=== 1. HÁLÓZATI ADAPTEREK ÉS IP KONFIGURÁCIÓ ===" "Cyan"
+Write-Log "=== 1. HALOZATI ADAPTEREK ES IP KONFIGURACIO ===" "Cyan"
 try {
     $adapters = Get-NetAdapter | Sort-Object Name
     foreach ($a in $adapters) {
@@ -316,7 +316,7 @@ Write-Log "--- ipconfig /all ---"
 Write-Block (ipconfig /all 2>&1 | Out-String)
 
 Write-Log ""
-Write-Log "--- Get-NetIPConfiguration (gateway, DNS, interfészenként) ---"
+Write-Log "--- Get-NetIPConfiguration (gateway, DNS, interfeszenkent) ---"
 try {
     Get-NetIPConfiguration | Format-List InterfaceAlias, IPv4Address, IPv4DefaultGateway, DNSServer |
         Out-String | ForEach-Object { Write-Block $_ }
@@ -336,24 +336,24 @@ try {
 
 # ==================== 2. MOBILNET / WWAN / CELLULAR ====================
 Write-Log ""
-Write-Log "=== 2. MOBILNET (SIM / WWAN / CELLULAR) INFORMÁCIÓK ===" "Cyan"
-Write-Log "A router SIM-kártyás mobilinternetet használ. Az alábbiak a Windows oldali Mobile Broadband adatokat mutatják."
+Write-Log "=== 2. MOBILNET (SIM / WWAN / CELLULAR) INFORMACIOK ===" "Cyan"
+Write-Log "A router SIM-kartyas mobilinternetet hasznal. Az alabbiak a Windows oldali Mobile Broadband adatokat mutatjak."
 try {
     $wwanAdapters = Get-NetAdapter | Where-Object {
         $_.InterfaceDescription -match "Mobile|WWAN|Cellular|LTE|5G|Broadband|Sierra|Quectel|Huawei|Fibocom|SIM" -or
         $_.MediaType -match "Wireless WAN|WWAN"
     }
     if ($wwanAdapters) {
-        Write-Log "Talált WWAN / Mobile Broadband adapter(ek):" "Green"
+        Write-Log "Talalt WWAN / Mobile Broadband adapter(ek):" "Green"
         foreach ($w in $wwanAdapters) {
-            Write-Log "  Név: $($w.Name) | Status: $($w.Status) | MAC: $($w.MacAddress) | Desc: $($w.InterfaceDescription) | Speed: $($w.LinkSpeed)"
+            Write-Log "  Nev: $($w.Name) | Status: $($w.Status) | MAC: $($w.MacAddress) | Desc: $($w.InterfaceDescription) | Speed: $($w.LinkSpeed)"
         }
     } else {
-        Write-Log "Nem található klasszikus WWAN adapter ezen a gépen (a mobilnet a routeren van, nem a PC-n)." "Yellow"
-        Write-Log "Ez normális, ha a SIM a routerben van."
+        Write-Log "Nem talalhato klasszikus WWAN adapter ezen a gepen (a mobilnet a routeren van, nem a PC-n)." "Yellow"
+        Write-Log "Ez normalis, ha a SIM a routerben van."
     }
 } catch {
-    Write-Log "WWAN adapter keresés hiba: $_" "Red"
+    Write-Log "WWAN adapter kereses hiba: $_" "Red"
 }
 Write-Log ""
 foreach ($cmd in @(
@@ -370,18 +370,18 @@ foreach ($cmd in @(
     } catch { }
 }
 Write-Log ""
-Write-Log "MOBILNET MEGJEGYZÉSEK:" "Yellow"
-Write-Log "- Ha a SIM a routerben van, a fenti netsh mbn parancsok gyakran üresek vagy hibát adnak (ez normális)."
-Write-Log "- A router WAN oldala CGNAT-on lehet -> befelé (port forward) általában nem működik."
-Write-Log "- A belső hálózati problémák (miner-ek, switch-ek, lassú eszközök) függetlenek a mobilnet minőségétől."
+Write-Log "MOBILNET MEGJEGYZESEK:" "Yellow"
+Write-Log "- Ha a SIM a routerben van, a fenti netsh mbn parancsok gyakran uresek vagy hibat adnak (ez normalis)."
+Write-Log "- A router WAN oldala CGNAT-on lehet -> befele (port forward) altalaban nem mukodik."
+Write-Log "- A belso halozati problemak (miner-ek, switch-ek, lassu eszkozok) fuggetlenek a mobilnet minosegetol."
 
 # ==================== 3. ARP / IPv4+IPv6 NEIGHBOR ====================
 Write-Log ""
-Write-Log "=== 3. ARP TÁBLA + Get-NetNeighbor (IPv4 és IPv6, minden állapot) ===" "Cyan"
+Write-Log "=== 3. ARP TABLA + Get-NetNeighbor (IPv4 es IPv6, minden allapot) ===" "Cyan"
 $Neighbors4 = @()
 try {
     $Neighbors4 = Get-NetNeighbor -AddressFamily IPv4 | Sort-Object IPAddress
-    Write-Log "Get-NetNeighbor (IPv4) összes bejegyzés: $($Neighbors4.Count)"
+    Write-Log "Get-NetNeighbor (IPv4) osszes bejegyzes: $($Neighbors4.Count)"
     $Neighbors4 | Format-Table IPAddress, LinkLayerAddress, State, InterfaceAlias -AutoSize |
         Out-String | ForEach-Object { Write-Block $_ }
 } catch {
@@ -391,7 +391,7 @@ Write-Log "--- arp -a ---"
 Write-Block (arp -a 2>&1 | Out-String)
 
 Write-Log ""
-Write-Log "--- Get-NetNeighbor (IPv6) - csak informatív, aktív IPv6 sweep nem lehetséges (/64 túl nagy) ---"
+Write-Log "--- Get-NetNeighbor (IPv6) - csak informativ, aktiv IPv6 sweep nem lehetseges (/64 tul nagy) ---"
 try {
     Get-NetNeighbor -AddressFamily IPv6 -ErrorAction SilentlyContinue |
         Where-Object { $_.State -in @("Reachable","Stale","Permanent") -and $_.IPAddress -notlike "fe80*" } |
@@ -399,14 +399,14 @@ try {
         Out-String | ForEach-Object { Write-Block $_ }
 } catch { }
 
-# ==================== 4. ALHÁLÓK MEGHATÁROZÁSA (fix + automatikus) ====================
+# ==================== 4. ALHALOK MEGHATAROZASA (fix + automatikus) ====================
 Write-Log ""
-Write-Log "=== 4. VIZSGÁLANDÓ ALHÁLÓK MEGHATÁROZÁSA ===" "Cyan"
+Write-Log "=== 4. VIZSGALANDO ALHALOK MEGHATAROZASA ===" "Cyan"
 
-# Ismert, gyári/tipikus tartományok ennél a hálózatnál (mobilnet router: 192.168.8.x gyári)
-# Fájlból töltve: /datas/iplist.json (JSON tömb, pl. ["192.168.0.0/24","192.168.8.0/24", ...])
-# Ha nincs ilyen fájl, a script létrehozza az alábbi alapértelmezett tartalommal - utána
-# már csak ezt a fájlt kell bővíteni, ha újabb router/switch tartományt kell felvenni.
+# Ismert, gyari/tipikus tartomanyok ennel a halozatnal (mobilnet router: 192.168.8.x gyari)
+# Fajlbol toltve: /datas/iplist.json (JSON tomb, pl. ["192.168.0.0/24","192.168.8.0/24", ...])
+# Ha nincs ilyen fajl, a script letrehozza az alabbi alapertelmezett tartalommal - utana
+# mar csak ezt a fajlt kell boviteni, ha ujabb router/switch tartomanyt kell felvenni.
 $DefaultKnownSubnets = @(
     "192.168.0.0/24",
     "192.168.1.0/24",
@@ -416,7 +416,7 @@ $DefaultKnownSubnets = @(
 )
 $KnownSubnets = Get-JsonList -Path $IpListPath -DefaultValue $DefaultKnownSubnets -Label "IP/subnet lista"
 
-# Automatikus felismerés a gépen konfigurált IP-k alapján (más/eltérő tartományok elkapására)
+# Automatikus felismeres a gepen konfiguralt IP-k alapjan (mas/eltero tartomanyok elkapasara)
 $AutoSubnets = New-Object System.Collections.Generic.List[string]
 try {
     $localIps = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -426,20 +426,20 @@ try {
             $cidr = Get-NetworkCidr -IPAddress $ip.IPAddress -PrefixLength $ip.PrefixLength
             if ($cidr) { $AutoSubnets.Add($cidr) }
         } else {
-            Write-Log "Kihagyva automatikus sweep-ből (túl nagy/kicsi tartomány): $($ip.IPAddress)/$($ip.PrefixLength)" "Yellow"
+            Write-Log "Kihagyva automatikus sweep-bol (tul nagy/kicsi tartomany): $($ip.IPAddress)/$($ip.PrefixLength)" "Yellow"
         }
     }
 } catch {
-    Write-Log "Automatikus alháló-detektálás hiba: $_" "Red"
+    Write-Log "Automatikus alhalo-detektalas hiba: $_" "Red"
 }
 
 $AllSubnets = @($KnownSubnets + $AutoSubnets + $ExtraSubnets) | Select-Object -Unique
-Write-Log "Vizsgálandó alhálók (fix + automatikusan felismert + extra):"
+Write-Log "Vizsgalando alhalok (fix + automatikusan felismert + extra):"
 $AllSubnets | ForEach-Object { Write-Log "  $_" }
 
-# ==================== 5. AGGRESSZÍV, PÁRHUZAMOSÍTOTT PING-SWEEP ====================
+# ==================== 5. AGGRESSZIV, PARHUZAMOSITOTT PING-SWEEP ====================
 Write-Log ""
-Write-Log "=== 5. AGGRESSZÍV PING-SWEEP (runspace pool, 3 próbálkozás/host, throttle=$ThrottleLimit) ===" "Cyan"
+Write-Log "=== 5. AGGRESSZIV PING-SWEEP (runspace pool, 3 probalkozas/host, throttle=$ThrottleLimit) ===" "Cyan"
 
 $AliveHosts = [System.Collections.Generic.List[string]]::new()
 $SlowHosts  = [System.Collections.Generic.List[string]]::new()
@@ -479,7 +479,7 @@ $PingScriptBlock = {
 foreach ($subnet in $AllSubnets) {
     $targets = Get-SubnetHosts -NetworkCidr $subnet
     if ($targets.Count -eq 0) { continue }
-    Write-Log "Sweep indul: $subnet ($($targets.Count) cím) ..." "Yellow"
+    Write-Log "Sweep indul: $subnet ($($targets.Count) cim) ..." "Yellow"
     $results = Invoke-Parallel -InputItems $targets -ScriptBlock $PingScriptBlock -Throttle $ThrottleLimit
     foreach ($res in $results) {
         $AllTested.Add($res)
@@ -487,49 +487,49 @@ foreach ($subnet in $AllSubnets) {
             $AliveHosts.Add($res.IP)
             if ($res.Slow) {
                 $SlowHosts.Add($res.IP)
-                Write-Log "  LASSÚ VÁLASZ: $($res.IP) | Átlag: $($res.AvgMs) ms | $($res.Details)" "Magenta"
+                Write-Log "  LASSU VALASZ: $($res.IP) | Atlag: $($res.AvgMs) ms | $($res.Details)" "Magenta"
             } else {
-                Write-Log "  ÉLŐ: $($res.IP) | Átlag: $($res.AvgMs) ms | $($res.Details)" "Green"
+                Write-Log "  ELO: $($res.IP) | Atlag: $($res.AvgMs) ms | $($res.Details)" "Green"
             }
         }
     }
 }
 
 Write-Log ""
-Write-Log "Összes tesztelt cím: $($AllTested.Count)"
-Write-Log "Összes élő host: $($AliveHosts.Count)" "Green"
-Write-Log "Lassú válaszú hostok: $($SlowHosts.Count)" "Magenta"
+Write-Log "Osszes tesztelt cim: $($AllTested.Count)"
+Write-Log "Osszes elo host: $($AliveHosts.Count)" "Green"
+Write-Log "Lassu valaszu hostok: $($SlowHosts.Count)" "Magenta"
 $AliveHosts | Sort-Object | ForEach-Object { Write-Log "  $_" }
 
-# --- ARP-ban látszó, de pingre NEM válaszoló "néma" eszközök (tűzfal / ICMP tiltás mögötti miner/switch gyanús)
+# --- ARP-ban latszo, de pingre NEM valaszolo "nema" eszkozok (tuzfal / ICMP tiltas mogotti miner/switch gyanus)
 Write-Log ""
-Write-Log "=== 5/B. CSAK ARP-BAN LÁTHATÓ, PINGRE NEM VÁLASZOLÓ (NÉMA) ESZKÖZÖK ===" "Cyan"
+Write-Log "=== 5/B. CSAK ARP-BAN LATHATO, PINGRE NEM VALASZOLO (NEMA) ESZKOZOK ===" "Cyan"
 $ArpOnlyHosts = [System.Collections.Generic.List[string]]::new()
 foreach ($n in $Neighbors4) {
     if ($n.State -in @("Reachable","Stale","Permanent") -and $n.IPAddress -and ($AliveHosts -notcontains $n.IPAddress)) {
         $ArpOnlyHosts.Add($n.IPAddress)
-        Write-Log "  NÉMA (ARP-ban van, pingre nem válaszol): $($n.IPAddress) | MAC: $($n.LinkLayerAddress)" "Magenta"
+        Write-Log "  NEMA (ARP-ban van, pingre nem valaszol): $($n.IPAddress) | MAC: $($n.LinkLayerAddress)" "Magenta"
     }
 }
 if ($ArpOnlyHosts.Count -eq 0) {
-    Write-Log "Nincs ilyen eszköz - minden ARP-bejegyzés válaszolt pingre is."
+    Write-Log "Nincs ilyen eszkoz - minden ARP-bejegyzes valaszolt pingre is."
 } else {
-    Write-Log "Ezek az eszközök ICMP-t (pinget) blokkolnak, de fizikailag jelen vannak a hálózaton - gyanúsak lehetnek (miner, rejtett switch, tűzfalazott gép)." "Yellow"
+    Write-Log "Ezek az eszkozok ICMP-t (pinget) blokkolnak, de fizikailag jelen vannak a halozaton - gyanusak lehetnek (miner, rejtett switch, tuzfalazott gep)." "Yellow"
 }
 
-# Vizsgálati célpontok: élő hostok + néma (ARP-only) hostok együtt
+# Vizsgalati celpontok: elo hostok + nema (ARP-only) hostok egyutt
 $InvestigateTargets = @($AliveHosts + $ArpOnlyHosts) | Select-Object -Unique | Sort-Object
 
-# ==================== 6. RÉSZLETES HOST VIZSGÁLAT (hostname, MAC, NetBIOS, portok) ====================
+# ==================== 6. RESZLETES HOST VIZSGALAT (hostname, MAC, NetBIOS, portok) ====================
 Write-Log ""
-Write-Log "=== 6. RÉSZLETES HOST VIZSGÁLAT ($($InvestigateTargets.Count) cél: élő + néma) ===" "Cyan"
+Write-Log "=== 6. RESZLETES HOST VIZSGALAT ($($InvestigateTargets.Count) cel: elo + nema) ===" "Cyan"
 
 $CommonPorts = @(21, 22, 23, 25, 80, 443, 445, 8080, 8443, 3389, 5900)
 $MinerPorts  = @(1800, 3333, 3334, 3335, 3336, 3357, 4028, 4444, 5555, 6666, 7777,
                   8332, 8333, 9332, 9333, 9999, 14433, 14444, 45700, 8888, 9998)
 $AllPorts = ($CommonPorts + $MinerPorts) | Select-Object -Unique
 
-# 6/A - gyors, host-szintű metaadatok (hostname, MAC, NetBIOS)
+# 6/A - gyors, host-szintu metaadatok (hostname, MAC, NetBIOS)
 $HostMeta = @{}
 foreach ($ip in $InvestigateTargets) {
     Write-Log "--- $ip ---" "Yellow"
@@ -545,15 +545,15 @@ foreach ($ip in $InvestigateTargets) {
                 $ptr = Resolve-DnsName -Name $ip -Type PTR -ErrorAction Stop
                 $meta.Hostname = $ptr.NameHost
                 Write-Log "  Hostname (PTR): $($ptr.NameHost)"
-            } catch { Write-Log "  Hostname: (nem oldható fel)" }
+            } catch { Write-Log "  Hostname: (nem oldhato fel)" }
         } else {
-            Write-Log "  Hostname: (nem oldható fel)"
+            Write-Log "  Hostname: (nem oldhato fel)"
         }
     }
 
     try {
         $mac = ($Neighbors4 | Where-Object { $_.IPAddress -eq $ip } | Select-Object -First 1).LinkLayerAddress
-        if ($mac) { $meta.MAC = $mac; Write-Log "  MAC: $mac" } else { Write-Log "  MAC: (nincs ARP bejegyzés)" }
+        if ($mac) { $meta.MAC = $mac; Write-Log "  MAC: $mac" } else { Write-Log "  MAC: (nincs ARP bejegyzes)" }
     } catch {
         Write-Log "  MAC: hiba"
     }
@@ -570,9 +570,9 @@ foreach ($ip in $InvestigateTargets) {
     $HostMeta[$ip] = $meta
 }
 
-# 6/B - párhuzamosított portscan minden célhoston (host x port kombinációk egyszerre)
+# 6/B - parhuzamositott portscan minden celhoston (host x port kombinaciok egyszerre)
 Write-Log ""
-Write-Log "--- Párhuzamos portscan indul ($($InvestigateTargets.Count) host x $($AllPorts.Count) port, throttle=$PortThrottleLimit) ---" "Yellow"
+Write-Log "--- Parhuzamos portscan indul ($($InvestigateTargets.Count) host x $($AllPorts.Count) port, throttle=$PortThrottleLimit) ---" "Yellow"
 
 $PortTargets = New-Object System.Collections.Generic.List[object]
 foreach ($ip in $InvestigateTargets) {
@@ -609,28 +609,28 @@ foreach ($grp in $PortResultsByIp) {
     $slowPorts = $grp.Group | Where-Object { $_.Open -and $_.Ms -gt 300 } | ForEach-Object { "$($_.Port)($($_.Ms)ms)" }
     $minerOpen = $openPorts | Where-Object { $MinerPorts -contains $_ }
 
-    Write-Log "--- $ip port eredmények ---" "Yellow"
+    Write-Log "--- $ip port eredmenyek ---" "Yellow"
     if ($openPorts.Count -gt 0) {
         Write-Log "  Nyitott portok: $($openPorts -join ', ')" "Green"
     }
     if ($slowPorts.Count -gt 0) {
-        Write-Log "  LASSÚ port válaszok: $($slowPorts -join ', ')" "Magenta"
+        Write-Log "  LASSU port valaszok: $($slowPorts -join ', ')" "Magenta"
     }
     if ($openPorts.Count -eq 0 -and $slowPorts.Count -eq 0) {
-        Write-Log "  Nyitott port: nincs (vagy tűzfal / túl lassú)"
+        Write-Log "  Nyitott port: nincs (vagy tuzfal / tul lassu)"
     }
     if ($minerOpen.Count -gt 0) {
         $SuspiciousMinerHosts.Add($ip)
-        Write-Log "  *** GYANÚS: ismert miner/stratum port nyitva ezen az eszközön: $($minerOpen -join ', ') ***" "Red"
+        Write-Log "  *** GYANUS: ismert miner/stratum port nyitva ezen az eszkozon: $($minerOpen -join ', ') ***" "Red"
     }
 }
 
 # ==================== 7. PATHPING / TRACEROUTE + GATEWAY/WAN TESZT ====================
 Write-Log ""
-Write-Log "=== 7. PATHPING / TRACEROUTE (lassú + néma + élő hostok) ===" "Cyan"
+Write-Log "=== 7. PATHPING / TRACEROUTE (lassu + nema + elo hostok) ===" "Cyan"
 $TargetsForPath = @($SlowHosts + $ArpOnlyHosts + $AliveHosts) | Select-Object -Unique | Select-Object -First 15
 foreach ($ip in $TargetsForPath) {
-    Write-Log "--- pathping $ip (rövidített) ---" "Yellow"
+    Write-Log "--- pathping $ip (roviditett) ---" "Yellow"
     try {
         Write-Block (pathping -n -q 3 -p 100 -w 800 $ip 2>&1 | Out-String)
     } catch {
@@ -639,7 +639,7 @@ foreach ($ip in $TargetsForPath) {
 }
 
 Write-Log ""
-Write-Log "=== 7/B. EXPLICIT GATEWAY ÉS WAN (INTERNET) TESZT ===" "Cyan"
+Write-Log "=== 7/B. EXPLICIT GATEWAY ES WAN (INTERNET) TESZT ===" "Cyan"
 $Gateways = @()
 try {
     $Gateways = (Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway } |
@@ -649,17 +649,17 @@ try {
 foreach ($gw in $Gateways) {
     $r = Test-PingHost -TargetIP $gw -Attempts 5 -TimeoutMs 800
     $lossPct = [math]::Round((1 - ($r.SuccessCount / 5)) * 100, 0)
-    Write-Log "Gateway $gw : $($r.SuccessCount)/5 válasz | Átlag: $($r.AvgMs) ms | Csomagvesztés: $lossPct% | $($r.Details)" $(if ($lossPct -gt 0) { "Magenta" } else { "Green" })
+    Write-Log "Gateway $gw : $($r.SuccessCount)/5 valasz | Atlag: $($r.AvgMs) ms | Csomagvesztes: $lossPct% | $($r.Details)" $(if ($lossPct -gt 0) { "Magenta" } else { "Green" })
 }
 
 foreach ($wanTarget in @("1.1.1.1", "8.8.8.8")) {
     $r = Test-PingHost -TargetIP $wanTarget -Attempts 5 -TimeoutMs 1000
     $lossPct = [math]::Round((1 - ($r.SuccessCount / 5)) * 100, 0)
-    Write-Log "WAN teszt $wanTarget : $($r.SuccessCount)/5 válasz | Átlag: $($r.AvgMs) ms | Csomagvesztés: $lossPct% | $($r.Details)" $(if ($lossPct -gt 0) { "Magenta" } else { "Green" })
+    Write-Log "WAN teszt $wanTarget : $($r.SuccessCount)/5 valasz | Atlag: $($r.AvgMs) ms | Csomagvesztes: $lossPct% | $($r.Details)" $(if ($lossPct -gt 0) { "Magenta" } else { "Green" })
 }
 
 Write-Log ""
-Write-Log "--- DNS feloldás teszt (google.com) ---"
+Write-Log "--- DNS feloldas teszt (google.com) ---"
 try {
     $swDns = [System.Diagnostics.Stopwatch]::StartNew()
     if ($Cap.ResolveDnsName) {
@@ -668,14 +668,14 @@ try {
         $dnsTest = [System.Net.Dns]::GetHostEntry("google.com")
     }
     $swDns.Stop()
-    Write-Log "DNS feloldás SIKERES ($($swDns.ElapsedMilliseconds) ms alatt)" "Green"
+    Write-Log "DNS feloldas SIKERES ($($swDns.ElapsedMilliseconds) ms alatt)" "Green"
 } catch {
-    Write-Log "DNS feloldás SIKERTELEN: $_" "Red"
+    Write-Log "DNS feloldas SIKERTELEN: $_" "Red"
 }
 
-# ==================== 8. ÚTVONAL + DNS KONFIG ====================
+# ==================== 8. UTVONAL + DNS KONFIG ====================
 Write-Log ""
-Write-Log "=== 8. ÚTVONAL TÁBLA ÉS DNS KONFIG ===" "Cyan"
+Write-Log "=== 8. UTVONAL TABLA ES DNS KONFIG ===" "Cyan"
 Write-Log "--- route print ---"
 Write-Block (route print 2>&1 | Out-String)
 
@@ -687,9 +687,9 @@ try {
     Write-Log "DNS info hiba: $_" "Red"
 }
 
-# ==================== 9. AKTÍV TCP KAPCSOLATOK + MINING POOL KORRELÁCIÓ ====================
+# ==================== 9. AKTIV TCP KAPCSOLATOK + MINING POOL KORRELACIO ====================
 Write-Log ""
-Write-Log "=== 9. AKTÍV TCP KAPCSOLATOK ===" "Cyan"
+Write-Log "=== 9. AKTIV TCP KAPCSOLATOK ===" "Cyan"
 $TcpConns = @()
 try {
     $TcpConns = Get-NetTCPConnection -State Established, Listen -ErrorAction SilentlyContinue
@@ -700,7 +700,7 @@ try {
 }
 
 Write-Log ""
-Write-Log "=== 9/B. ISMERT MINING POOL / GYANÚS PORT KORRELÁCIÓ (ki- és bejövő kapcsolatok) ===" "Cyan"
+Write-Log "=== 9/B. ISMERT MINING POOL / GYANUS PORT KORRELACIO (ki- es bejovo kapcsolatok) ===" "Cyan"
 $MiningHits = [System.Collections.Generic.List[string]]::new()
 $established = $TcpConns | Where-Object { $_.State -eq "Established" -and $_.RemoteAddress -notmatch "^(127\.|0\.0\.0\.0|::)" }
 foreach ($c in $established) {
@@ -722,24 +722,24 @@ foreach ($c in $established) {
         } catch { }
         $reason = @()
         if ($isMinerPort) { $reason += "ismert stratum/miner port" }
-        if ($keywordHit)  { $reason += "PTR kulcsszó egyezés ($ptrName)" }
-        $line = "GYANÚS KAPCSOLAT: $($c.LocalAddress):$($c.LocalPort) <-> $($c.RemoteAddress):$($c.RemotePort) | Folyamat: $procName (PID $($c.OwningProcess)) | Ok: $($reason -join '; ')"
+        if ($keywordHit)  { $reason += "PTR kulcsszo egyezes ($ptrName)" }
+        $line = "GYANUS KAPCSOLAT: $($c.LocalAddress):$($c.LocalPort) <-> $($c.RemoteAddress):$($c.RemotePort) | Folyamat: $procName (PID $($c.OwningProcess)) | Ok: $($reason -join '; ')"
         $MiningHits.Add($line)
         Write-Log "  $line" "Red"
     }
 }
 if ($MiningHits.Count -eq 0) {
-    Write-Log "Nem található ismert mining pool port/domain mintázatú aktív TCP kapcsolat ezen a gépen."
+    Write-Log "Nem talalhato ismert mining pool port/domain mintazatu aktiv TCP kapcsolat ezen a gepen."
 } else {
-    Write-Log "FIGYELEM: $($MiningHits.Count) gyanús kapcsolat található - ez ezen a GÉPEN futó folyamatra utal, nem feltétlenül a hálózat más eszközére!" "Red"
+    Write-Log "FIGYELEM: $($MiningHits.Count) gyanus kapcsolat talalhato - ez ezen a GEPEN futo folyamatra utal, nem feltetlenul a halozat mas eszkozere!" "Red"
 }
 
-# ==================== 10. ADAPTER HIBASTATISZTIKÁK (DELTA MÉRÉS) ====================
+# ==================== 10. ADAPTER HIBASTATISZTIKAK (DELTA MERES) ====================
 Write-Log ""
-Write-Log "=== 10. ADAPTER HIBASTATISZTIKÁK ÉS FORGALOM (5 mp delta mérés) ===" "Cyan"
+Write-Log "=== 10. ADAPTER HIBASTATISZTIKAK ES FORGALOM (5 mp delta meres) ===" "Cyan"
 try {
     $statsBefore = Get-NetAdapterStatistics
-    Write-Log "Mérés indul, 5 másodperc várakozás..."
+    Write-Log "Meres indul, 5 masodperc varakozas..."
     Start-Sleep -Seconds 5
     $statsAfter = Get-NetAdapterStatistics
 
@@ -750,9 +750,9 @@ try {
             $txDelta = $after.SentBytes - $before.SentBytes
             $rxKBs = [math]::Round($rxDelta / 5 / 1024, 1)
             $txKBs = [math]::Round($txDelta / 5 / 1024, 1)
-            Write-Log "  $($after.Name): RX $rxKBs KB/s | TX $txKBs KB/s | Hibás fogadott csomag: $($after.ReceivedPacketErrors) | Hibás küldött: $($after.OutboundPacketErrors) | Eldobott (RX/TX): $($after.ReceivedDiscardedPackets)/$($after.OutboundDiscardedPackets)"
+            Write-Log "  $($after.Name): RX $rxKBs KB/s | TX $txKBs KB/s | Hibas fogadott csomag: $($after.ReceivedPacketErrors) | Hibas kuldott: $($after.OutboundPacketErrors) | Eldobott (RX/TX): $($after.ReceivedDiscardedPackets)/$($after.OutboundDiscardedPackets)"
             if ($rxKBs -gt 500 -or $txKBs -gt 500) {
-                Write-Log "    -> Folyamatosan magas forgalom, érdemes megnézni mi generálja (lehet háttérben futó torrent/backup/miner is)." "Yellow"
+                Write-Log "    -> Folyamatosan magas forgalom, erdemes megnezni mi generalja (lehet hatterben futo torrent/backup/miner is)." "Yellow"
             }
         }
     }
@@ -760,9 +760,9 @@ try {
     Write-Log "Adapter statisztika hiba: $_" "Red"
 }
 
-# ==================== 11. HELYI FOLYAMATOK (CPU / HÁLÓZAT) ====================
+# ==================== 11. HELYI FOLYAMATOK (CPU / HALOZAT) ====================
 Write-Log ""
-Write-Log "=== 11. HELYI GÉP - LEGTÖBB CPU-T HASZNÁLÓ FOLYAMATOK (helyi miner kizárásához) ===" "Cyan"
+Write-Log "=== 11. HELYI GEP - LEGTOBB CPU-T HASZNALO FOLYAMATOK (helyi miner kizarasahoz) ===" "Cyan"
 try {
     Get-Process | Sort-Object CPU -Descending | Select-Object -First 15 Name, Id,
         @{N='CPU(s)';E={[math]::Round($_.CPU,1)}}, @{N='WS(MB)';E={[math]::Round($_.WorkingSet64/1MB,1)}} |
@@ -771,11 +771,11 @@ try {
     Write-Log "Folyamatlista hiba: $_" "Red"
 }
 
-# ==================== 12. RENDSZERNAPLÓ ====================
+# ==================== 12. RENDSZERNAPLO ====================
 Write-Log ""
-Write-Log "=== 12. RENDSZERNAPLÓ - HÁLÓZATI HIBÁK (utolsó 72 óra) ===" "Cyan"
-# FONTOS JAVÍTÁS: a Get-WinEvent FilterHashtable ProviderName mezője NEM támogat wildcard-ot,
-# ezért előbb feloldjuk a pontos provider neveket Get-WinEvent -ListProvider segítségével.
+Write-Log "=== 12. RENDSZERNAPLO - HALOZATI HIBAK (utolso 72 ora) ===" "Cyan"
+# FONTOS JAVITAS: a Get-WinEvent FilterHashtable ProviderName mezoje NEM tamogat wildcard-ot,
+# ezert elobb feloldjuk a pontos provider neveket Get-WinEvent -ListProvider segitsegevel.
 $ProviderPatterns = @("Tcpip", "e1dexpress", "Netwtw*", "ndis", "Dhcp*")
 $ResolvedProviders = New-Object System.Collections.Generic.List[string]
 foreach ($pat in $ProviderPatterns) {
@@ -791,7 +791,7 @@ foreach ($providerName in $ResolvedProviders) {
     try {
         $events = Get-WinEvent -FilterHashtable @{ LogName = "System"; ProviderName = $providerName; StartTime = $since; Level = 2,3 } -MaxEvents 40 -ErrorAction SilentlyContinue
         if ($events) {
-            Write-Log "--- System / $providerName --- találat: $($events.Count)" "Yellow"
+            Write-Log "--- System / $providerName --- talalat: $($events.Count)" "Yellow"
             foreach ($e in $events) {
                 $msg = $e.Message -replace "`r`n", " " -replace "\s+", " "
                 if ($msg.Length -gt 200) { $msg = $msg.Substring(0, 200) + "..." }
@@ -801,13 +801,13 @@ foreach ($providerName in $ResolvedProviders) {
     } catch { }
 }
 
-# DNS-Client operational log - előbb ellenőrizzük, hogy engedélyezve van-e
+# DNS-Client operational log - elobb ellenorizzuk, hogy engedelyezve van-e
 try {
     $dnsLog = Get-WinEvent -ListLog "Microsoft-Windows-DNS-Client/Operational" -ErrorAction Stop
     if ($dnsLog.IsEnabled) {
         $dnsEvents = Get-WinEvent -FilterHashtable @{ LogName = "Microsoft-Windows-DNS-Client/Operational"; StartTime = $since; Level = 2,3 } -MaxEvents 40 -ErrorAction SilentlyContinue
         if ($dnsEvents) {
-            Write-Log "--- DNS-Client/Operational --- találat: $($dnsEvents.Count)" "Yellow"
+            Write-Log "--- DNS-Client/Operational --- talalat: $($dnsEvents.Count)" "Yellow"
             foreach ($e in $dnsEvents) {
                 $msg = $e.Message -replace "`r`n", " " -replace "\s+", " "
                 if ($msg.Length -gt 200) { $msg = $msg.Substring(0, 200) + "..." }
@@ -815,16 +815,16 @@ try {
             }
         }
     } else {
-        Write-Log "A Microsoft-Windows-DNS-Client/Operational napló nincs engedélyezve ezen a gépen - kihagyva." "Yellow"
+        Write-Log "A Microsoft-Windows-DNS-Client/Operational naplo nincs engedelyezve ezen a gepen - kihagyva." "Yellow"
     }
 } catch {
-    Write-Log "DNS-Client/Operational napló nem érhető el ezen a gépen - kihagyva." "Yellow"
+    Write-Log "DNS-Client/Operational naplo nem erheto el ezen a gepen - kihagyva." "Yellow"
 }
 
-# ==================== 13. EGYÉB ====================
+# ==================== 13. EGYEB ====================
 Write-Log ""
-Write-Log "=== 13. EGYÉB INFORMÁCIÓK ===" "Cyan"
-Write-Log "--- netstat -ano (LISTENING + ESTABLISHED, első 50) ---"
+Write-Log "=== 13. EGYEB INFORMACIOK ===" "Cyan"
+Write-Log "--- netstat -ano (LISTENING + ESTABLISHED, elso 50) ---"
 Write-Block ((netstat -ano 2>&1 | Select-String "LISTENING|ESTABLISHED" | Select-Object -First 50) -join "`n")
 
 Write-Log "--- Get-NetRoute (IPv4) ---"
@@ -836,63 +836,63 @@ try {
     Write-Log "Get-NetRoute hiba: $_" "Red"
 }
 
-# ==================== 14. ÖSSZEFOGLALÓ ====================
+# ==================== 14. OSSZEFOGLALO ====================
 Write-Log ""
-Write-Log "=== ÖSSZEFOGLALÓ ===" "Cyan"
-Write-Log "PowerShell verzió: $($PSVer.ToString())"
-Write-Log "Vizsgált alhálók: $($AllSubnets -join ', ')"
-Write-Log "Összes tesztelt IP: $($AllTested.Count)"
-Write-Log "Élő hostok száma: $($AliveHosts.Count)"
-Write-Log "Lassú válaszú hostok: $($SlowHosts.Count)"
-Write-Log "Néma (csak ARP-ban látszó) hostok: $($ArpOnlyHosts.Count)"
-Write-Log "Gyanús (miner port nyitva) hostok: $($SuspiciousMinerHosts.Count)"
-Write-Log "Gyanús helyi mining pool kapcsolatok: $($MiningHits.Count)"
+Write-Log "=== OSSZEFOGLALO ===" "Cyan"
+Write-Log "PowerShell verzio: $($PSVer.ToString())"
+Write-Log "Vizsgalt alhalok: $($AllSubnets -join ', ')"
+Write-Log "Osszes tesztelt IP: $($AllTested.Count)"
+Write-Log "Elo hostok szama: $($AliveHosts.Count)"
+Write-Log "Lassu valaszu hostok: $($SlowHosts.Count)"
+Write-Log "Nema (csak ARP-ban latszo) hostok: $($ArpOnlyHosts.Count)"
+Write-Log "Gyanus (miner port nyitva) hostok: $($SuspiciousMinerHosts.Count)"
+Write-Log "Gyanus helyi mining pool kapcsolatok: $($MiningHits.Count)"
 Write-Log ""
-Write-Log "Élő IP-k:"
+Write-Log "Elo IP-k:"
 $AliveHosts | Sort-Object | ForEach-Object { Write-Log "  $_" }
 Write-Log ""
-Write-Log "Néma (ARP-only) IP-k - érdemes fizikailag megkeresni, mi ez:"
+Write-Log "Nema (ARP-only) IP-k - erdemes fizikailag megkeresni, mi ez:"
 $ArpOnlyHosts | Sort-Object | ForEach-Object { Write-Log "  $_" "Magenta" }
 Write-Log ""
-Write-Log "Lassú IP-k (gyanús):"
+Write-Log "Lassu IP-k (gyanus):"
 $SlowHosts | Sort-Object | ForEach-Object { Write-Log "  $_" "Magenta" }
 Write-Log ""
-Write-Log "Gyanús IP-k (nyitott miner/stratum port):"
+Write-Log "Gyanus IP-k (nyitott miner/stratum port):"
 $SuspiciousMinerHosts | Sort-Object | ForEach-Object { Write-Log "  $_" "Red" }
 Write-Log ""
-Write-Log "MEGJEGYZÉS A SWITCH-EKRŐL:"
-Write-Log "A managed/unmanaged switch-ek többsége NEM válaszol pingre, NEM jelenik meg ARP-ban (ha nincs management IP),"
-Write-Log "és NEM nyit portokat. Csak akkor látszanak, ha van management interfészük (általában .1 / .254 / külön VLAN)."
-Write-Log "A 'láthatatlan' switch-ek hibáját leginkább a mögöttük lévő eszközök sántításából, packet error-okból"
-Write-Log "és a pathping veszteségéből lehet következtetni."
+Write-Log "MEGJEGYZES A SWITCH-EKROL:"
+Write-Log "A managed/unmanaged switch-ek tobbsege NEM valaszol pingre, NEM jelenik meg ARP-ban (ha nincs management IP),"
+Write-Log "es NEM nyit portokat. Csak akkor latszanak, ha van management interfeszuk (altalaban .1 / .254 / kulon VLAN)."
+Write-Log "A 'lathatatlan' switch-ek hibajat leginkabb a mogottuk levo eszkozok santitasabol, packet error-okbol"
+Write-Log "es a pathping vesztesegebol lehet kovetkeztetni."
 Write-Log ""
-Write-Log "MEGJEGYZÉS AZ ASIC MINEREKRŐL:"
-Write-Log "Ha egy ASIC miner rendesen termel, de nem érhető el a belső hálózaton, az egyik leggyakoribb ok, hogy"
-Write-Log "külön VLAN-on/subneten van, vagy a webes admin felülete (általában 80/8080-as porton) tűzfalazva van a helyi gépről."
-Write-Log "A fenti 'néma' és 'gyanús port' listák pont ezeket próbálják kiszűrni."
+Write-Log "MEGJEGYZES AZ ASIC MINEREKROL:"
+Write-Log "Ha egy ASIC miner rendesen termel, de nem erheto el a belso halozaton, az egyik leggyakoribb ok, hogy"
+Write-Log "kulon VLAN-on/subneten van, vagy a webes admin felulete (altalaban 80/8080-as porton) tuzfalazva van a helyi geprol."
+Write-Log "A fenti 'nema' es 'gyanus port' listak pont ezeket probaljak kiszurni."
 Write-Log ""
-Write-Log "MOBILNET EMLÉKEZTETŐ:"
-Write-Log "A SIM a routerben van -> a PC-n futó netsh mbn parancsok gyakran üresek. Ez normális."
-Write-Log "A belső hálózati hibák (miner, switch, lassú eszköz) függetlenek a mobilnet minőségétől."
+Write-Log "MOBILNET EMLEKEZTETO:"
+Write-Log "A SIM a routerben van -> a PC-n futo netsh mbn parancsok gyakran uresek. Ez normalis."
+Write-Log "A belso halozati hibak (miner, switch, lassu eszkoz) fuggetlenek a mobilnet minosegetol."
 Write-Log ""
-Write-Log "=== DIAGNOSZTIKA VÉGE ===" "Cyan"
-Write-Log "Fájl mentve: $OutFile"
+Write-Log "=== DIAGNOSZTIKA VEGE ===" "Cyan"
+Write-Log "Fajl mentve: $OutFile"
 
-# Fájlba írás
+# Fajlba iras
 $Log | Out-File -FilePath $OutFile -Encoding UTF8
 
 Write-Host ""
-Write-Host "Kész! A teljes, maximális log itt van: $OutFile" -ForegroundColor Green
-Write-Host "Küldd el ezt a fájlt, és együtt kiértékeljük." -ForegroundColor Green
+Write-Host "Kesz! A teljes, maximalis log itt van: $OutFile" -ForegroundColor Green
+Write-Host "Kuldd el ezt a fajlt, es egyutt kiertekeljuk." -ForegroundColor Green
 Write-Host ""
-$openAnswer = Read-Host "Megnyissam a LOG mappát? (I/n - alapértelmezett: Igen, csak nyomj Entert)"
+$openAnswer = Read-Host "Megnyissam a LOG mappat? (I/n - alapertelmezett: Igen, csak nyomj Entert)"
 if ([string]::IsNullOrWhiteSpace($openAnswer) -or $openAnswer -match "^(i|ig|igen|y|yes)$") {
     try {
         Invoke-Item $OutDir
     } catch {
-        Write-Host "Nem sikerült megnyitni a mappát: $_" -ForegroundColor Red
-        Write-Host "Kézzel itt találod: $OutDir" -ForegroundColor Yellow
+        Write-Host "Nem sikerult megnyitni a mappat: $_" -ForegroundColor Red
+        Write-Host "Kezzel itt talalod: $OutDir" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "Rendben, a mappa nem nyílik meg. Elérési út: $OutDir" -ForegroundColor Yellow
+    Write-Host "Rendben, a mappa nem nyilik meg. Eleresi ut: $OutDir" -ForegroundColor Yellow
 }
