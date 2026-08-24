@@ -1,9 +1,9 @@
-# NetworkDiag MAX - futás közben keletkező log fájlok kizárása
-# Ezek valós hálózati adatokat tartalmaznak (IP-k, MAC címek, hostnevek,
-# nyitott portok, event log kivonatok) - ezért nem valók verziókezelőbe.
+# NetworkDiag MAX - futas kozben keletkezo log fajlok kizarasa
+# Ezek valos halozati adatokat tartalmaznak (IP-k, MAC cimek, hostnevek,
+# nyitott portok, event log kivonatok) - ezert nem valok verziokezelobe.
 LOG/
 win/LOG/
 **/LOG/*.txt
 
-# A datas\ mappa (iplist.json, minerpoollist.json) VISSZASZÁNDÉKOSAN nincs itt -
-# az mehet verziókezelőbe, mert csak konfigurációs listákat tartalmaz.
+# A datas\ mappa (iplist.json, minerpoollist.json) VISSZASZANDEKOSAN nincs itt -
+# az mehet verziokezelobe, mert csak konfiguracios listakat tartalmaz.
