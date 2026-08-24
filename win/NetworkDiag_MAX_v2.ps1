@@ -16,11 +16,15 @@
     Konfiguracios fajlok (nem kotelezoek - ha hianyoznak, a script automatikusan
     letrehozza oket alapertelmezett tartalommal az elso futaskor), a script melletti
     datas\ mappaban:
-        datas\iplist.json         - vizsgalando fix alhalok, JSON tombkent
-                                     pl.: ["192.168.0.0/24","192.168.8.0/24","10.0.5.0/24"]
-        datas\minerpoollist.json  - ismert mining pool kulcsszavak (hostname/PTR egyezeshez)
-                                     pl.: ["pool","stratum","nanopool","antpool"]
-    Ezek szerkesztesevel a keresesi tartomany es a pool-felismeres bovitheto
+        datas\iplist.json          - vizsgalando fix alhalok, JSON tombkent
+                                      pl.: ["192.168.0.0/24","192.168.8.0/24","10.0.5.0/24"]
+        datas\minerpoollist.json   - ismert mining pool kulcsszavak (hostname/PTR egyezeshez)
+                                      pl.: ["pool","stratum","nanopool","antpool"]
+        datas\knownservices.json   - ismert/legitim kulso szolgaltatasok (hostname/PTR egyezeshez),
+                                      pl. tavsegitseg (TeamViewer) es felho szinkron (OneDrive) -
+                                      ezek kulon, "nem gyanus" kategoriaban jelennek meg a logban
+                                      pl.: ["teamviewer","onedrive","googledrive","dropbox"]
+    Ezek szerkesztesevel a keresesi tartomany es a felismeres bovitheto
     a script kodjanak modositasa nelkul.
 
     Megjegyzes: a LOG\ mappat erdemes .gitignore-ba tenni (szemelyes halozati adatokat,
@@ -34,6 +38,7 @@ param(
     [string[]]$ExtraSubnets = @(),  # pl. -ExtraSubnets "10.0.0.0/24","172.16.5.0/24"
     [string]$IpListPath = "$PSScriptRoot\datas\iplist.json",           # vizsgalando alhalok listaja (JSON tomb) - a script melletti datas\ mappaban
     [string]$MinerPoolListPath = "$PSScriptRoot\datas\minerpoollist.json",  # ismert mining pool kulcsszavak (JSON tomb) - a script melletti datas\ mappaban
+    [string]$KnownServicesListPath = "$PSScriptRoot\datas\knownservices.json",  # ismert/legitim kulso szolgaltatasok (TeamViewer, OneDrive stb.) - JSON tomb
     [string]$LogDir = "$PSScriptRoot\LOG"  # a kimeneti log fajlok mappaja - a script melletti LOG\ mappa
 )
 
@@ -50,7 +55,7 @@ function Test-Admin {
 if (-not $NoElevation -and -not (Test-Admin)) {
     if ($ScriptPath) {
         Write-Host "Jogosultsag emeles szukseges. Ujrainditas adminisztratorkent..." -ForegroundColor Yellow
-        Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -NoElevation -ThrottleLimit $ThrottleLimit -PortThrottleLimit $PortThrottleLimit -IpListPath `"$IpListPath`" -MinerPoolListPath `"$MinerPoolListPath`" -LogDir `"$LogDir`""
+        Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -NoElevation -ThrottleLimit $ThrottleLimit -PortThrottleLimit $PortThrottleLimit -IpListPath `"$IpListPath`" -MinerPoolListPath `"$MinerPoolListPath`" -KnownServicesListPath `"$KnownServicesListPath`" -LogDir `"$LogDir`""
         exit
     } else {
         Write-Host "FIGYELEM: A script nem .ps1 fajlbol fut (pl. irm | iex), ezert automatikus admin-emeles nem lehetseges." -ForegroundColor Red
@@ -85,6 +90,7 @@ Write-Log "Gep: $env:COMPUTERNAME | Felhasznalo: $env:USERNAME | Ido: $(Get-Date
 Write-Log "Kimeneti fajl: $OutFile"
 Write-Log "IP/subnet lista fajl: $IpListPath"
 Write-Log "Mining pool kulcsszo lista fajl: $MinerPoolListPath"
+Write-Log "Ismert kulso szolgaltatas lista fajl: $KnownServicesListPath"
 Write-Log "Cel: semmi se maradjon rejtve (ASIC miner, nema switch, lassu/portolt eszkoz, mobilnet, mining pool kapcsolatok)"
 Write-Log ""
 
@@ -299,6 +305,35 @@ function Test-MiningIndicator {
         if ($HostnameOrText -match [regex]::Escape($kw)) { return $true }
     }
     return $false
+}
+
+# --- Ismert / legitim kulso szolgaltatasok (tavoli eleres, felho tarhely, stb.)
+#     Kulon lista a mining pool listatol - ez NEM gyanus mintazat, hanem tudatos
+#     feherlista, hogy pl. a TeamViewer-en keresztuli tavsegitseg forgalma vagy a
+#     felho szinkron szolgaltatasok (OneDrive, Google Drive) egyertelmuen "ismert,
+#     rendben levo" kapcsolatkent jelenjenek meg a logban, ne keveredjenek a
+#     gyanus talalatok koze es ne okozzanak felreertest.
+#     Fajlbol toltve: /datas/knownservices.json (JSON tomb, pl. ["teamviewer","onedrive", ...])
+#     Ha nincs ilyen fajl, a script letrehozza az alabbi alapertelmezett tartalommal.
+$DefaultKnownServiceKeywords = @(
+    "teamviewer","anydesk","logmein","chrome-remote-desktop","remotedesktop",
+    "skype","teams","zoom","discord","whatsapp",
+    "onedrive","live.com","1drv","office365","office.com","microsoft","windowsupdate","msftconnecttest",
+    "googledrive","googleusercontent","google.com","gstatic",
+    "dropbox","icloud","apple.com",
+    "akamai","cloudflare","amazonaws","azureedge","azure","cloudfront",
+    "steam","steampowered","valve",
+    "github","githubusercontent"
+)
+$KnownServiceKeywords = Get-JsonList -Path $KnownServicesListPath -DefaultValue $DefaultKnownServiceKeywords -Label "Ismert kulso szolgaltatas lista"
+
+function Test-KnownServiceIndicator {
+    param([string]$HostnameOrText)
+    if ([string]::IsNullOrWhiteSpace($HostnameOrText)) { return $null }
+    foreach ($kw in $KnownServiceKeywords) {
+        if ($HostnameOrText -match [regex]::Escape($kw)) { return $kw }
+    }
+    return $null
 }
 
 # ==================== 1. ALAP ADAPTER + IP ====================
@@ -700,11 +735,12 @@ try {
 }
 
 Write-Log ""
-Write-Log "=== 9/B. ISMERT MINING POOL / GYANUS PORT KORRELACIO (ki- es bejovo kapcsolatok) ===" "Cyan"
+Write-Log "=== 9/B. ISMERT/LEGITIM KULSO SZOLGALTATASOK ES MINING POOL / GYANUS PORT KORRELACIO ===" "Cyan"
+Write-Log "(Elobb az ismert szolgaltatas-listaval vetjuk ossze - pl. TeamViewer, OneDrive - hogy ezek egyertelmuen ne keveredjenek a gyanus talalatok koze.)"
 $MiningHits = [System.Collections.Generic.List[string]]::new()
+$KnownServiceHits = [System.Collections.Generic.List[string]]::new()
 $established = $TcpConns | Where-Object { $_.State -eq "Established" -and $_.RemoteAddress -notmatch "^(127\.|0\.0\.0\.0|::)" }
 foreach ($c in $established) {
-    $isMinerPort = ($MinerPorts -contains $c.RemotePort) -or ($MinerPorts -contains $c.LocalPort)
     $ptrName = $null
     if ($Cap.ResolveDnsName -and $c.RemoteAddress -notmatch "^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)") {
         try {
@@ -712,14 +748,27 @@ foreach ($c in $established) {
             $ptrName = $ptr.NameHost
         } catch { }
     }
+
+    $procName = "?"
+    try {
+        $proc = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
+        if ($proc) { $procName = $proc.ProcessName }
+    } catch { }
+
+    # 1) Eloszor ismert/legitim szolgaltatas-e (TeamViewer, OneDrive, Google, stb.)
+    $knownMatch = Test-KnownServiceIndicator -HostnameOrText $ptrName
+    if ($knownMatch) {
+        $line = "ISMERT SZOLGALTATAS: $($c.LocalAddress):$($c.LocalPort) <-> $($c.RemoteAddress):$($c.RemotePort) ($ptrName) | Folyamat: $procName (PID $($c.OwningProcess)) | Egyezes: $knownMatch"
+        $KnownServiceHits.Add($line)
+        Write-Log "  $line" "Cyan"
+        continue  # ismert, legitim kapcsolat - nem kell tovabb (mining) vizsgalni
+    }
+
+    # 2) Csak ha NEM ismert szolgaltatas, akkor nezzuk a mining pool / gyanus port mintazatokat
+    $isMinerPort = ($MinerPorts -contains $c.RemotePort) -or ($MinerPorts -contains $c.LocalPort)
     $keywordHit = Test-MiningIndicator -HostnameOrText $ptrName
 
     if ($isMinerPort -or $keywordHit) {
-        $procName = "?"
-        try {
-            $proc = Get-Process -Id $c.OwningProcess -ErrorAction SilentlyContinue
-            if ($proc) { $procName = $proc.ProcessName }
-        } catch { }
         $reason = @()
         if ($isMinerPort) { $reason += "ismert stratum/miner port" }
         if ($keywordHit)  { $reason += "PTR kulcsszo egyezes ($ptrName)" }
@@ -727,6 +776,13 @@ foreach ($c in $established) {
         $MiningHits.Add($line)
         Write-Log "  $line" "Red"
     }
+}
+
+Write-Log ""
+if ($KnownServiceHits.Count -gt 0) {
+    Write-Log "Ismert/legitim kulso szolgaltatas kapcsolatok szama: $($KnownServiceHits.Count) (pl. TeamViewer, OneDrive, Google stb. - ezek NEM gyanusak, csak informaciok)" "Cyan"
+} else {
+    Write-Log "Nem talalhato ismert szolgaltatas (TeamViewer/OneDrive/stb.) mintazatu aktiv kapcsolat ezen a gepen."
 }
 if ($MiningHits.Count -eq 0) {
     Write-Log "Nem talalhato ismert mining pool port/domain mintazatu aktiv TCP kapcsolat ezen a gepen."
@@ -847,6 +903,7 @@ Write-Log "Lassu valaszu hostok: $($SlowHosts.Count)"
 Write-Log "Nema (csak ARP-ban latszo) hostok: $($ArpOnlyHosts.Count)"
 Write-Log "Gyanus (miner port nyitva) hostok: $($SuspiciousMinerHosts.Count)"
 Write-Log "Gyanus helyi mining pool kapcsolatok: $($MiningHits.Count)"
+Write-Log "Ismert/legitim kulso szolgaltatas kapcsolatok (TeamViewer, OneDrive, stb.): $($KnownServiceHits.Count)"
 Write-Log ""
 Write-Log "Elo IP-k:"
 $AliveHosts | Sort-Object | ForEach-Object { Write-Log "  $_" }
