@@ -5,21 +5,26 @@
          eszközök, lassú válaszok, ismert mining pool-okra menő kapcsolatok, mobilnet.
 
     Használat:
-        - Küldd el ezt a fájlt a felhasználónak
+        - Küldd el ezt a fájlt (és mellé a datas\ mappát) a felhasználónak
         - Jobb klikk -> "Futtatás PowerShell-lel" (vagy dupla katt, ha .ps1 társítva van)
         - A script magától kér admin jogot
-        - A futás végén a C:\lan mappában keletkező .txt fájlt kell visszaküldeni
+        - A futás végén a script melletti LOG mappában keletkező .txt fájlt kell visszaküldeni
+        - A script a végén rákérdez, hogy megnyissa-e a LOG mappát (alapból Igen -> csak Entert kell nyomni)
 
-    Kimenet: C:\lan\NetworkDiag_MAX_YYYYMMDD_HHMMSS.txt
+    Kimenet: <script mappája>\LOG\NetworkDiag_MAX_YYYYMMDD_HHMMSS.txt
 
     Konfigurációs fájlok (nem kötelezőek - ha hiányoznak, a script automatikusan
-    létrehozza őket alapértelmezett tartalommal az első futáskor):
-        /datas/iplist.json         - vizsgálandó fix alhálók, JSON tömbként
-                                      pl.: ["192.168.0.0/24","192.168.8.0/24","10.0.5.0/24"]
-        /datas/minerpoollist.json  - ismert mining pool kulcsszavak (hostname/PTR egyezéshez)
-                                      pl.: ["pool","stratum","nanopool","antpool"]
+    létrehozza őket alapértelmezett tartalommal az első futáskor), a script melletti
+    datas\ mappában:
+        datas\iplist.json         - vizsgálandó fix alhálók, JSON tömbként
+                                     pl.: ["192.168.0.0/24","192.168.8.0/24","10.0.5.0/24"]
+        datas\minerpoollist.json  - ismert mining pool kulcsszavak (hostname/PTR egyezéshez)
+                                     pl.: ["pool","stratum","nanopool","antpool"]
     Ezek szerkesztésével a keresési tartomány és a pool-felismerés bővíthető
     a script kódjának módosítása nélkül.
+
+    Megjegyzés: a LOG\ mappát érdemes .gitignore-ba tenni (személyes hálózati adatokat,
+    IP-ket, MAC címeket tartalmaz) - a datas\ mappa viszont mehet verziókezelőbe.
 #>
 
 param(
@@ -27,8 +32,9 @@ param(
     [int]$ThrottleLimit = 64,       # párhuzamos ping-sweep szálak
     [int]$PortThrottleLimit = 120,  # párhuzamos portscan szálak
     [string[]]$ExtraSubnets = @(),  # pl. -ExtraSubnets "10.0.0.0/24","172.16.5.0/24"
-    [string]$IpListPath = "/datas/iplist.json",           # vizsgálandó alhálók listája (JSON tömb)
-    [string]$MinerPoolListPath = "/datas/minerpoollist.json"  # ismert mining pool kulcsszavak (JSON tömb)
+    [string]$IpListPath = "$PSScriptRoot\datas\iplist.json",           # vizsgálandó alhálók listája (JSON tömb) - a script melletti datas\ mappában
+    [string]$MinerPoolListPath = "$PSScriptRoot\datas\minerpoollist.json",  # ismert mining pool kulcsszavak (JSON tömb) - a script melletti datas\ mappában
+    [string]$LogDir = "$PSScriptRoot\LOG"  # a kimeneti log fájlok mappája - a script melletti LOG\ mappa
 )
 
 # ==================== 0. SCRIPT ELÉRÉSI ÚT (irm | iex védelem) ====================
@@ -44,7 +50,7 @@ function Test-Admin {
 if (-not $NoElevation -and -not (Test-Admin)) {
     if ($ScriptPath) {
         Write-Host "Jogosultság emelés szükséges. Újraindítás adminisztrátorként..." -ForegroundColor Yellow
-        Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -NoElevation -ThrottleLimit $ThrottleLimit -PortThrottleLimit $PortThrottleLimit -IpListPath `"$IpListPath`" -MinerPoolListPath `"$MinerPoolListPath`""
+        Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -NoElevation -ThrottleLimit $ThrottleLimit -PortThrottleLimit $PortThrottleLimit -IpListPath `"$IpListPath`" -MinerPoolListPath `"$MinerPoolListPath`" -LogDir `"$LogDir`""
         exit
     } else {
         Write-Host "FIGYELEM: A script nem .ps1 fájlból fut (pl. irm | iex), ezért automatikus admin-emelés nem lehetséges." -ForegroundColor Red
@@ -53,7 +59,7 @@ if (-not $NoElevation -and -not (Test-Admin)) {
 }
 
 # ==================== KIMENETI MAPPA ====================
-$OutDir = "C:\lan"
+$OutDir = $LogDir
 if (-not (Test-Path $OutDir)) {
     New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
 }
@@ -878,4 +884,15 @@ $Log | Out-File -FilePath $OutFile -Encoding UTF8
 Write-Host ""
 Write-Host "Kész! A teljes, maximális log itt van: $OutFile" -ForegroundColor Green
 Write-Host "Küldd el ezt a fájlt, és együtt kiértékeljük." -ForegroundColor Green
-try { Invoke-Item $OutFile } catch { }
+Write-Host ""
+$openAnswer = Read-Host "Megnyissam a LOG mappát? (I/n - alapértelmezett: Igen, csak nyomj Entert)"
+if ([string]::IsNullOrWhiteSpace($openAnswer) -or $openAnswer -match "^(i|ig|igen|y|yes)$") {
+    try {
+        Invoke-Item $OutDir
+    } catch {
+        Write-Host "Nem sikerült megnyitni a mappát: $_" -ForegroundColor Red
+        Write-Host "Kézzel itt találod: $OutDir" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "Rendben, a mappa nem nyílik meg. Elérési út: $OutDir" -ForegroundColor Yellow
+}
