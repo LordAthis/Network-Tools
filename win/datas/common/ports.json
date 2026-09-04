@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "updated": "2026-09-04",
+  "description": "Kozos portok miner detekciohoz es statusz lekerdezeshez",
+  "priority_scan": [22, 80, 443, 4028, 4433, 50051, 8080, 9999],
+  "web_ui": [80, 443, 8080],
+  "api_cgminer": [4028],
+  "api_whatsminer": [4433],
+  "api_braiins_grpc": [50051],
+  "ssh": [22],
+  "stratum_common": [3333, 443, 25, 1800, 1314, 5555, 8888, 3357, 1010],
+  "notes": {
+    "4028": "cgminer/bmminer/Avalon JSON API - legfontosabb",
+    "4433": "Whatsminer ujabb API",
+    "50051": "Braiins OS gRPC",
+    "22": "SSH - gyakran Dropbear/BusyBox miner control boardokon",
+    "443": "Web UI vagy plain-TCP stratum (firewall bypass)"
+  }
+}
