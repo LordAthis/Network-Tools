@@ -1,3 +1,21 @@
 {
-na,
+  "version": "1.0",
+  "updated": "2026-09-04",
+  "description": "Ismert switchek listaja ezen a halozaton. A LEGTOBB unmanaged (nem menedzselt) switch SOHA nem fog megjelenni pingre/ARP-ban/SNMP-re - fizikailag NEM lathato szoftveresen, csak akkor, ha valaki fizikailag megnezi a polcon/dobozban, hany port van hasznalva, milyen felirat van rajta. Ha VAN management IP-je (managed switch), azt a NetworkDiag_MAX_v2.ps1 SNMP-probaja (kiserleti) vagy a nyitott web/telnet admin portja segithet beazonositani - azt ide erdemes felvenni.",
+  "schema_note": "Minden bejegyzesnel az ip a legfontosabb, HA VAN management IP-je a switchnek. Ha nincs (unmanaged), akkor location + notes mezovel dokumentald fizikailag (pl. 'nappaliban a router mellett, 8 port, TP-Link SG108').",
+  "switches": [
+    {
+      "ip": "",
+      "mac": "",
+      "hostname": "",
+      "model": "",
+      "managed": false,
+      "port_count": null,
+      "location": "",
+      "admin_url": "",
+      "snmp_sysdescr": "",
+      "notes": "",
+      "last_verified": ""
+    }
+  ]
 }
