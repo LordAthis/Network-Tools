@@ -1,0 +1,41 @@
+{
+  "id": "bitmain_equihash",
+  "manufacturer": "Bitmain",
+  "brand": "Antminer",
+  "algorithm": "Equihash",
+  "coins": ["ZEC"],
+  "updated": "2026-09-04",
+  "note": "Z sorozat. Uj elol.",
+  "ports": {
+    "web_ui": [80, 8080],
+    "api": [4028],
+    "ssh": 22
+  },
+  "api_type": "cgminer/bmminer JSON over TCP",
+  "basic_commands": [
+    {"cmd": "version", "payload": "{\"command\":\"version\"}"},
+    {"cmd": "summary", "payload": "{\"command\":\"summary\"}"},
+    {"cmd": "pools", "payload": "{\"command\":\"pools\"}"}
+  ],
+  "extended_commands": [
+    {"cmd": "stats", "payload": "{\"command\":\"stats\"}"},
+    {"cmd": "devs", "payload": "{\"command\":\"devs\"}"},
+    {"cmd": "estats", "payload": "{\"command\":\"estats\"}"}
+  ],
+  "ssh": {
+    "port": 22,
+    "banner_hints": ["dropbear", "busybox"]
+  },
+  "mac_oui": ["E0-A5-09"],
+  "models": [
+    {"name": "Z15 Pro", "hashrate": "840 KSol/s", "status": "current"},
+    {"name": "Z15K", "hashrate": "525 KSol/s", "status": "current"},
+    {"name": "Z15", "hashrate": "420 KSol/s", "status": "current"},
+    {"name": "Z11", "status": "legacy"},
+    {"name": "Z9 / Z9 mini", "status": "legacy"}
+  ],
+  "log_retrieval": [
+    "Web UI Log",
+    "API estats + summary"
+  ]
+}
