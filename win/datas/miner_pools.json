@@ -1,0 +1,188 @@
+{
+  "version": "1.1",
+  "updated": "2026-09-04",
+  "description": "Mining pools - stratum endpoints, ports, keywords. Companion to minerpoollist.json",
+  "common_stratum_ports": [3333, 3334, 443, 25, 1800, 1314, 1315, 2309, 2310, 5555, 4444, 21496, 9999, 3357, 1010, 8888, 3002],
+  "priority_outbound_ports": [3333, 443, 25, 1800, 1314, 2309, 5555, 3357, 1010, 8888],
+  "keywords_flat": [
+    "antpool", "f2pool", "viabtc", "foundry", "braiins", "slush", "ocean.xyz", "spiderpool",
+    "emcd", "luxor", "binance", "ckpool", "public-pool", "2miners", "herominers", "woolypooly",
+    "nanopool", "k1pool", "kryptex", "katpool", "powhashing", "litecoinpool", "stratum+tcp",
+    "stratum+ssl", "stratum.", "ss.antpool", "btc.f2pool", "btc.viabtc", "ltc.viabtc", "ltc.f2pool",
+    "zec.f2pool", "zec.2miners", "kas.katpool", "kaspa", "dingo", "scrypt", "equihash"
+  ],
+  "pools": [
+    {
+      "id": "foundry_usa",
+      "name": "Foundry USA",
+      "coins": ["BTC"],
+      "algorithms": ["SHA-256"],
+      "stratum": [{"url": "stratum+tcp://btc.foundryusapool.com:3333", "port": 3333}],
+      "domains": ["foundryusapool.com"],
+      "keywords": ["foundry"]
+    },
+    {
+      "id": "antpool",
+      "name": "AntPool",
+      "operator": "Bitmain",
+      "coins": ["BTC", "BCH", "LTC", "DOGE", "KAS", "ZEC"],
+      "algorithms": ["SHA-256", "Scrypt", "kHeavyHash", "Equihash"],
+      "stratum": [
+        {"url": "stratum+tcp://stratum.antpool.com:3333", "port": 3333, "coin": "BTC"},
+        {"url": "stratum+tcp://ss.antpool.com:3333", "port": 3333},
+        {"url": "stratum+tcp://ss.antpool.com:443", "port": 443, "tls": false},
+        {"url": "stratum+tcp://ss.antpool.com:25", "port": 25},
+        {"url": "stratum+tcp://ltc.antpool.com:3333", "port": 3333, "coin": "LTC+DOGE"}
+      ],
+      "domains": ["antpool.com"],
+      "keywords": ["antpool", "ss.antpool"]
+    },
+    {
+      "id": "viabtc",
+      "name": "ViaBTC",
+      "coins": ["BTC", "BCH", "LTC", "DOGE", "KAS", "ZEC", "DINGO"],
+      "algorithms": ["SHA-256", "Scrypt", "kHeavyHash", "Equihash"],
+      "stratum": [
+        {"url": "stratum+tcp://btc.viabtc.com:3333", "port": 3333},
+        {"url": "stratum+tcp://btc.viabtc.io:3333", "port": 3333},
+        {"url": "stratum+tcp://btc.powhashing.com:3333", "port": 3333},
+        {"url": "stratum+tcp://ltc.viabtc.io:3333", "port": 3333, "coin": "LTC+DOGE"},
+        {"url": "stratum+tcp://ltc.viabtc.io:443", "port": 443, "coin": "LTC+DOGE"},
+        {"url": "stratum+tcp://mining.viabtc.io:3002", "port": 3002, "coin": "ZEC"}
+      ],
+      "domains": ["viabtc.com", "viabtc.io", "powhashing.com"],
+      "keywords": ["viabtc", "powhashing"]
+    },
+    {
+      "id": "f2pool",
+      "name": "F2Pool",
+      "coins": ["BTC", "BCH", "LTC", "DOGE", "KAS", "ZEC", "DINGO", "BELLS", "PEP", "LKY"],
+      "algorithms": ["SHA-256", "Scrypt", "kHeavyHash", "Equihash"],
+      "stratum": [
+        {"url": "stratum+tcp://btc.f2pool.com:3333", "port": 3333},
+        {"url": "stratum+tcp://btc-na.f2pool.com:1314", "port": 1314},
+        {"url": "stratum+tcp://ltc.f2pool.com:8888", "port": 8888, "coin": "LTC+DOGE+Scrypt merged"},
+        {"url": "stratum+tcp://ltc.f2pool.com:3335", "port": 3335},
+        {"url": "stratum+tcp://zec.f2pool.com:3357", "port": 3357, "coin": "ZEC"},
+        {"url": "stratum+tcp://kas.f2pool.com:1430", "port": 1430, "coin": "KAS"}
+      ],
+      "domains": ["f2pool.com"],
+      "keywords": ["f2pool"]
+    },
+    {
+      "id": "braiins",
+      "name": "Braiins Pool",
+      "coins": ["BTC"],
+      "algorithms": ["SHA-256"],
+      "stratum": [
+        {"url": "stratum+tcp://stratum.braiins.com:3333", "port": 3333},
+        {"url": "stratum+tcp://solo.stratum.braiins.com:3333", "port": 3333},
+        {"url": "stratum+tcp://stratum.braiins.com:443", "port": 443}
+      ],
+      "domains": ["braiins.com"],
+      "keywords": ["braiins", "slush"]
+    },
+    {
+      "id": "ocean",
+      "name": "OCEAN",
+      "coins": ["BTC"],
+      "stratum": [{"url": "stratum+tcp://mine.ocean.xyz:3334", "port": 3334}],
+      "domains": ["ocean.xyz"],
+      "keywords": ["ocean.xyz"]
+    },
+    {
+      "id": "spiderpool",
+      "name": "SpiderPool",
+      "coins": ["BTC"],
+      "stratum": [
+        {"url": "stratum+tcp://btc-us.spiderpool.com:2309", "port": 2309},
+        {"url": "stratum+tcp://btc-eu.spiderpool.com:2309", "port": 2309},
+        {"url": "stratum+ssl://btc-us.spiderpool.com:2310", "port": 2310}
+      ],
+      "domains": ["spiderpool.com"],
+      "keywords": ["spiderpool"]
+    },
+    {
+      "id": "emcd",
+      "name": "EMCD",
+      "coins": ["BTC", "LTC", "DOGE", "KAS"],
+      "stratum": [
+        {"url": "stratum+tcp://btc.emcd.io:3333", "port": 3333},
+        {"url": "stratum+tcp://ltc.emcd.io:3333", "port": 3333},
+        {"url": "stratum+tcp://kaspa.emcd.io:3333", "port": 3333}
+      ],
+      "domains": ["emcd.io"],
+      "keywords": ["emcd"]
+    },
+    {
+      "id": "litecoinpool",
+      "name": "Litecoinpool.org",
+      "coins": ["LTC", "DOGE"],
+      "algorithms": ["Scrypt"],
+      "stratum": [{"url": "stratum+tcp://litecoinpool.org:3333", "port": 3333}],
+      "domains": ["litecoinpool.org"],
+      "keywords": ["litecoinpool"]
+    },
+    {
+      "id": "2miners_zec",
+      "name": "2Miners ZEC",
+      "coins": ["ZEC"],
+      "algorithms": ["Equihash"],
+      "stratum": [
+        {"url": "stratum+tcp://zec.2miners.com:1010", "port": 1010},
+        {"url": "stratum+tcp://us-zec.2miners.com:1010", "port": 1010},
+        {"url": "stratum+tcp://asia-zec.2miners.com:1010", "port": 1010}
+      ],
+      "domains": ["2miners.com"],
+      "keywords": ["2miners", "zec.2miners"]
+    },
+    {
+      "id": "katpool",
+      "name": "Kat Pool",
+      "coins": ["KAS"],
+      "stratum": [
+        {"url": "stratum+tcp://kas.katpool.com:3333", "port": 3333},
+        {"url": "stratum+tcp://kas.katpool.com:5555", "port": 5555}
+      ],
+      "domains": ["katpool.com"],
+      "keywords": ["katpool"]
+    },
+    {
+      "id": "ckpool_solo",
+      "name": "CKPool Solo",
+      "coins": ["BTC"],
+      "stratum": [{"url": "stratum+tcp://solo.ckpool.org:3333", "port": 3333}],
+      "domains": ["ckpool.org"],
+      "keywords": ["ckpool"]
+    },
+    {
+      "id": "public_pool",
+      "name": "public-pool.io",
+      "coins": ["BTC"],
+      "stratum": [{"url": "stratum+tcp://public-pool.io:21496", "port": 21496}],
+      "domains": ["public-pool.io"],
+      "keywords": ["public-pool"]
+    },
+    {
+      "id": "herominers",
+      "name": "HeroMiners",
+      "coins": ["KAS", "ZEC", "ERG", "RVN", "ETC"],
+      "domains": ["herominers.com"],
+      "keywords": ["herominers"]
+    },
+    {
+      "id": "woolypooly",
+      "name": "WoolyPooly",
+      "coins": ["KAS", "ETC", "RVN", "ERG"],
+      "domains": ["woolypooly.com"],
+      "keywords": ["woolypooly"]
+    },
+    {
+      "id": "kryptex",
+      "name": "Kryptex",
+      "coins": ["BTC", "KAS", "LTC", "DOGE", "RVN", "ETC"],
+      "domains": ["kryptex.com"],
+      "keywords": ["kryptex"]
+    }
+  ]
+}
