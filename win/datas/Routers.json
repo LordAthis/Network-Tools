@@ -1,3 +1,18 @@
 {
-na,
+  "version": "1.0",
+  "updated": "2026-09-04",
+  "description": "Ismert routerek listaja ezen a halozaton. Kezzel toltendo, ahogy egy-egy routert azonositasz (pl. NetworkDiag_MAX_v2.ps1 futasa utan a LOG-bol, vagy fizikai ellenorzessel). A NetworkDiag script es a LOGtoINDEX.ps1 ezt hasznalja fel a mar ISMERT eszkozok megjelolesere, hogy ne kelljen ujra es ujra 'nema/gyanus' cimkevel felfedezni ugyanazt a routert minden futaskor.",
+  "schema_note": "Minden bejegyzesnel az ip a legfontosabb (ez alapjan tortenik az egyezes). A tobbi mezo opcionalis, amennyit tudsz, annyit tolts ki.",
+  "routers": [
+    {
+      "ip": "",
+      "mac": "",
+      "hostname": "",
+      "model": "",
+      "role": "mobilnet router / gyari 192.168.8.x",
+      "admin_url": "",
+      "notes": "",
+      "last_verified": ""
+    }
+  ]
 }
