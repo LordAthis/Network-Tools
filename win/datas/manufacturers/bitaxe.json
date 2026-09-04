@@ -1,0 +1,28 @@
+{
+  "id": "bitaxe",
+  "manufacturer": "Open Source",
+  "brand": "Bitaxe / NerdAxe / AxeOS",
+  "algorithm": "SHA-256",
+  "coins": ["BTC"],
+  "updated": "2026-09-04",
+  "ports": {
+    "web_ui": [80],
+    "api": [80],
+    "ssh": 22
+  },
+  "api_type": "HTTP REST + WebSocket",
+  "basic_commands": [
+    {"method": "GET", "path": "/api/system/info", "port": 80},
+    {"method": "GET", "path": "/api/system/asic", "port": 80}
+  ],
+  "extended_commands": [
+    {"method": "GET", "path": "/api/ws", "port": 80},
+    {"method": "GET", "path": "/api/ws/live", "port": 80}
+  ],
+  "ssh": {"port": 22},
+  "models": [
+    {"name": "Bitaxe Gamma / Supra", "status": "current"},
+    {"name": "NerdAxe / NerdQAxe", "status": "current"}
+  ],
+  "notes": "Hobby / otthoni solo mining. Gyakran nincs auth az API-n."
+}
