@@ -1,0 +1,22 @@
+{
+  "id": "iceriver",
+  "manufacturer": "IceRiver",
+  "algorithms": ["kHeavyHash", "zkSNARK"],
+  "coins": ["KAS", "ALEO"],
+  "updated": "2026-09-04",
+  "ports": {
+    "web_ui": [80],
+    "api": [80, 4028],
+    "ssh": 22
+  },
+  "basic_commands": [
+    {"cmd": "version", "payload": "{\"command\":\"version\"}", "port": 4028},
+    {"cmd": "summary", "payload": "{\"command\":\"summary\"}", "port": 4028}
+  ],
+  "ssh": {"port": 22},
+  "models": [
+    {"name": "KS series (Kaspa)", "status": "current"},
+    {"name": "AE series (Aleo)", "status": "current"}
+  ],
+  "notes": "Otthoni/kis farm kornyezetben gyakori."
+}
