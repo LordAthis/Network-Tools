@@ -45,9 +45,14 @@ function Load-JsonFile {
 }
 
 function Offer-OpenLog {
-    $openLog = Read-Host "Megnyissuk a LOG fajlt Notepad-dal? (I/N)"
+    $openLog = Read-Host "Megnyissuk a LOG fajlt bongeszoben, olvashato formaban? (I/N)"
     if ($openLog -match '^[IiYy]') {
-        try { Start-Process notepad.exe -ArgumentList $LogFile } catch { Write-Log "Notepad inditas sikertelen" "Yellow" }
+        $logToIndex = Join-Path $ScriptRoot "LOGtoINDEX.ps1"
+        if (Test-Path $logToIndex) {
+            try { & $logToIndex -LogFile $LogFile -LogDir $LogDir } catch { Write-Log "LOGtoINDEX inditas sikertelen: $($_.Exception.Message)" "Yellow" }
+        } else {
+            try { Start-Process notepad.exe -ArgumentList $LogFile } catch { Write-Log "Notepad inditas sikertelen" "Yellow" }
+        }
     }
 }
 
