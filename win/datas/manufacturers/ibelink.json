@@ -1,0 +1,24 @@
+{
+  "id": "ibelink",
+  "manufacturer": "iBeLink",
+  "brand": "iBeLink",
+  "algorithms": ["SHA-256", "other"],
+  "coins": ["BTC"],
+  "updated": "2026-09-04",
+  "note": "Kisebb gyarto, masodpiacon es specialis modellekkel fordul elo.",
+  "ports": {
+    "web_ui": [80, 8080],
+    "api": [4028, 80],
+    "ssh": 22
+  },
+  "api_type": "gyakran cgminer-kompatibilis",
+  "basic_commands": [
+    {"cmd": "version", "payload": "{\"command\":\"version\"}"},
+    {"cmd": "summary", "payload": "{\"command\":\"summary\"}"},
+    {"cmd": "pools", "payload": "{\"command\":\"pools\"}"}
+  ],
+  "ssh": {"port": 22},
+  "models": [
+    {"name": "BM-K1 / hasonlo", "status": "legacy/varies"}
+  ]
+}
