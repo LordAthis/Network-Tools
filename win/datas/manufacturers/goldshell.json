@@ -1,0 +1,19 @@
+{
+  "id": "goldshell",
+  "manufacturer": "Goldshell",
+  "algorithms": ["kHeavyHash", "Scrypt", "zkSNARK"],
+  "coins": ["KAS", "LTC", "DOGE", "ALEO"],
+  "updated": "2026-09-04",
+  "ports": {
+    "web_ui": [80],
+    "api": [80],
+    "ssh": 22
+  },
+  "ssh": {"port": 22},
+  "models": [
+    {"name": "KA Box / KA Box Pro", "status": "current"},
+    {"name": "AE-BOX series", "status": "current"},
+    {"name": "Mini-DOGE / DG series", "status": "current"}
+  ],
+  "notes": "Kompakt home unitok."
+}
