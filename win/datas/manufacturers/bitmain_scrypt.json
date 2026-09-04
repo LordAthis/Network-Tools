@@ -1,0 +1,35 @@
+{
+  "id": "bitmain_scrypt",
+  "manufacturer": "Bitmain",
+  "brand": "Antminer",
+  "algorithm": "Scrypt",
+  "coins": ["LTC", "DOGE"],
+  "merged_mining": ["DOGE", "BELLS", "PEP", "LKY", "DINGO"],
+  "updated": "2026-09-04",
+  "ports": {
+    "web_ui": [80, 8080],
+    "api": [4028],
+    "ssh": 22
+  },
+  "api_type": "cgminer/bmminer JSON over TCP",
+  "basic_commands": [
+    {"cmd": "version", "payload": "{\"command\":\"version\"}"},
+    {"cmd": "summary", "payload": "{\"command\":\"summary\"}"},
+    {"cmd": "pools", "payload": "{\"command\":\"pools\"}"}
+  ],
+  "extended_commands": [
+    {"cmd": "stats", "payload": "{\"command\":\"stats\"}"},
+    {"cmd": "estats", "payload": "{\"command\":\"estats\"}"}
+  ],
+  "ssh": {
+    "port": 22,
+    "banner_hints": ["dropbear", "busybox"]
+  },
+  "mac_oui": ["E0-A5-09"],
+  "models": [
+    {"name": "L9", "status": "current"},
+    {"name": "L7", "status": "current"},
+    {"name": "L3+", "status": "legacy"}
+  ],
+  "notes": "LTC poolok tobbsege merge-mine-olja a DOGE-t es mas Scrypt altcoinokat."
+}
