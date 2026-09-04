@@ -1,0 +1,141 @@
+================================================================================
+MINING POOL LISTA - STRATUM CIMEK, PORTOK, MEGJEGYZESEK
+Utolso frissites: 2026-09
+Cel: hálózati diagnosztikai scriptek (kimenő kapcsolat + stratum detektálás)
+================================================================================
+
+MEGJEGYZES:
+- A legtöbb pool Stratum v1-et használ (stratum+tcp://).
+- Gyakori portok: 3333 (fő), 443 (firewall bypass, gyakran NEM TLS!), 25, 1800, regionális.
+- TLS/SSL portok változóak (551, 1300, 2310 stb.).
+- A scriptnek domain + IP + port alapján kellene tudnia felismerni.
+- IP-k változhatnak (CDN, anycast, geo-DNS) – domain alapú felismerés megbízhatóbb.
+
+--------------------------------------------------------------------------------
+1. NAGY BTC POOL-OK (2026 piaci részesedés alapján)
+--------------------------------------------------------------------------------
+
+Foundry USA (~30%)
+  Primary:   stratum+tcp://btc.foundryusapool.com:3333
+  Megj.:     Intézményi fókusz, gyakran KYC, FPPS, 0% fee (listázott)
+  Portok:    3333
+
+AntPool (Bitmain, ~18-19%)
+  Primary:   stratum+tcp://stratum.antpool.com:3333
+             stratum+tcp://ss.antpool.com:3333
+             stratum+tcp://btc.antpool.com:3333
+  Alt:       443 (plain TCP, nem TLS!), 25
+  Megj.:     FPPS / PPLNS, regisztráció nélkül is fogad munkát sok esetben
+
+ViaBTC (~13-14%)
+  Primary:   stratum+tcp://btc.viabtc.com:3333
+             stratum+tcp://btc.viabtc.io:3333
+             stratum+tcp://btc.viabtc.cc:3333
+             stratum+tcp://btc.viabtc.top:3333
+  Europe:    stratum+tcp://btc.powhashing.com:3333
+  SSL:       stratum+tcp://btc-ssl.viabtc.io:551
+  Alt port:  443
+  Megj.:     PPS+ / PPLNS / Solo, széles coin támogatás
+
+F2Pool (~10%)
+  Primary:   stratum+tcp://btc.f2pool.com:3333
+  Regional:  btc-asia.f2pool.com:1314
+             btc-euro.f2pool.com:1314
+             btc-na.f2pool.com:1314
+             btc-africa.f2pool.com:1314
+             btc-latin.f2pool.com:1314
+  SSL:       stratum+ssl://btcssl.f2pool.com:1300
+  Alt:       25, 1314, 1315, 3333
+  Megj.:     FPPS 4% / PPLNS 2%
+
+Braiins Pool (ex-Slush, ~3%)
+  Primary:   stratum+tcp://stratum.braiins.com:3333
+  Solo:      solo.stratum.braiins.com:3333
+  Alt:       443, 25
+  Megj.:     Stratum V2 natív támogatás, FPPS / PPLNS (0% PPLNS opció), erős home-miner barát
+
+OCEAN (~2%)
+  Primary:   stratum+tcp://mine.ocean.xyz:3334
+  Megj.:     TIDES payout, DATUM protokoll (miner-side template), non-custodial jelleg
+
+SpiderPool
+  US:        stratum+tcp://btc-us.spiderpool.com:2309
+  SA:        stratum+tcp://btc-sa.spiderpool.com:2309
+  AS:        stratum+tcp://btc-as.spiderpool.com:2309
+  EU:        stratum+tcp://btc-eu.spiderpool.com:2309
+  TLS:       :2310 (stratum+ssl)
+  Alt:       3333, 1800, 443
+  Megj.:     Magas starting difficulty (nagy farmokra optimalizált)
+
+EMCD
+  BTC:       stratum+tcp://btc.emcd.io:3333
+             stratum+tcp://btc.emcd.io:5555 (PPS+)
+  Megj.:     Alacsonyabb fee opciók, több coin
+
+Luxor
+  BTC:       (hivatalos dokumentáció szerint változó, gyakran luxor.tech stratum)
+  Megj.:     FPPS, intézményi + retail
+
+Binance Pool
+  BTC:       (binance pool stratum – account kötött)
+  Megj.:     FPPS, exchange integráció
+
+MARA Pool
+  Megj.:     Privát/internal jellegű, nagy hashrate
+
+--------------------------------------------------------------------------------
+2. SOLO / KISMINER BARAT POOL-OK
+--------------------------------------------------------------------------------
+
+CKPool Solo
+  stratum+tcp://solo.ckpool.org:3333
+
+public-pool.io
+  stratum+tcp://public-pool.io:21496
+
+Braiins Solo
+  solo.stratum.braiins.com:3333
+
+--------------------------------------------------------------------------------
+3. EGYEB / MULTI-COIN / ALTCOIN POOL-OK (gyakran használt)
+--------------------------------------------------------------------------------
+
+K1Pool, Kryptex, 2Miners, HeroMiners, WoolyPooly, Nanopool
+  - Kaspa, ETC, RVN, ERG stb. támogatással
+  - Tipikus portok: 3333, 1111-8888 tartomány (Kaspa-nál gyakori)
+
+Kat Pool (Kaspa)
+  stratum+tcp://kas.katpool.com:3333 (és 1111-8888)
+
+F2Pool / AntPool / ViaBTC Kaspa, LTC, BCH endpointok is léteznek
+  (pl. kas.f2pool.com, ltc.f2pool.com, kaspa.antpool.com stb.)
+
+--------------------------------------------------------------------------------
+4. GYAKORI STRATUM PORTOK (scriptekhez - kimenő kapcsolat figyelés)
+--------------------------------------------------------------------------------
+Prioritásos portok:
+  3333, 3334, 4444, 5555
+  443          (sok pool firewall-bypass-ként használja, gyakran plain TCP!)
+  25
+  1800, 1314, 1315
+  2309, 2310   (SpiderPool)
+  21496        (public-pool)
+  4028         (helyi miner API – NEM pool!)
+  9999         (néha stratum vagy custom)
+
+Domain kulcsszavak felismeréshez (régebbi scriptekben használt minerpoollist.json stílusban):
+  antpool, f2pool, viabtc, foundry, braiins, slush, ocean.xyz, spiderpool,
+  emcd, luxor, binance, ckpool, public-pool, 2miners, herominers, woolypooly,
+  nanopool, k1pool, kryptex, katpool, powhashing
+
+--------------------------------------------------------------------------------
+5. MEGJEGYZESEK A DIAGNOSZTIKAI SCRIPTHEZ
+--------------------------------------------------------------------------------
+- Kimenő ESTABLISHED kapcsolat 3333/443/25 portra + ismert pool domain/IP = erős miner jel
+- Helyi 4028/4433 nyitott port + JSON API válasz = helyi ASIC jelenlét
+- A pool IP-k gyakran változnak → domain alapú + SNI/Host fejléc figyelés jobb, mint tiszta IP lista
+- CGNAT / mobilnet esetén a pool felé menő kapcsolat akkor is látszik a helyi gépen/netstat-ban, ha a miner más eszközön van (ha a router NAT-ol)
+
+================================================================================
+VEGE - miner_pools_list.txt
+================================================================================
