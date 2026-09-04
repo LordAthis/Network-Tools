@@ -1,8 +1,8 @@
 # ============================================================
 #  MinerSearch.ps1
-#  Miner felfedezes + LOG iras
-#  Hasznalja: datas/minerpoollist.json, datas/miner_pools.json,
-#             datas/manufacturers/*, datas/common/*
+#  Miner felfedezes a LOG-okbol + sajat LOG iras
+#  Nem tolt be feleslegesen minden gyarto fajlt.
+#  Mas script hivja; a vegen visszater (nincs blokkolo pause).
 # ============================================================
 
 $ErrorActionPreference = "Continue"
@@ -12,18 +12,15 @@ $Host.UI.RawUI.WindowTitle = "MinerSearch"
 $ScriptRoot = $PSScriptRoot
 if (-not $ScriptRoot) { $ScriptRoot = (Get-Location).Path }
 
-$DataDir    = Join-Path $ScriptRoot "datas"
-$LogDir     = Join-Path $ScriptRoot "LOG"
-$ManufDir   = Join-Path $DataDir "manufacturers"
-$CommonDir  = Join-Path $DataDir "common"
+$DataDir = Join-Path $ScriptRoot "datas"
+$LogDir  = Join-Path $ScriptRoot "LOG"
 
-# LOG mappa biztositasa
 if (-not (Test-Path $LogDir)) {
     New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
 }
 
-$timestamp  = Get-Date -Format "yyyyMMdd_HHmmss"
-$LogFile    = Join-Path $LogDir "MinerSearch_$timestamp.txt"
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$LogFile   = Join-Path $LogDir "MinerSearch_$timestamp.txt"
 
 function Write-Log {
     param([string]$Message, [string]$Color = "White")
@@ -37,93 +34,104 @@ Write-Log "Gep: $env:COMPUTERNAME | Felhasznalo: $env:USERNAME"
 Write-Log "LOG fajl: $LogFile"
 Write-Log ""
 
-# --- JSON betoltes seged ---
 function Load-JsonFile {
     param([string]$Path, [string]$Name)
     if (-not (Test-Path $Path)) {
-        Write-Log "HIANYZIK: $Name -> $Path" "Red"
+        Write-Log "HIANYZIK: $Name" "Red"
         return $null
     }
     try {
-        $raw = Get-Content -Path $Path -Raw -Encoding UTF8
-        return $raw | ConvertFrom-Json
+        return (Get-Content -Path $Path -Raw -Encoding UTF8 | ConvertFrom-Json)
     } catch {
         Write-Log "JSON hiba ($Name): $($_.Exception.Message)" "Red"
         return $null
     }
 }
 
-# --- 1. Adatok betoltese ---
-Write-Log "=== 1. ADATOK BETOLTESE ===" "Yellow"
-
+# Csak a szukseges kis fajlok
 $simpleKeywords = Load-JsonFile -Path (Join-Path $DataDir "minerpoollist.json") -Name "minerpoollist.json"
-$poolsFull      = Load-JsonFile -Path (Join-Path $DataDir "miner_pools.json") -Name "miner_pools.json"
-$portsCommon    = Load-JsonFile -Path (Join-Path $CommonDir "ports.json") -Name "ports.json"
-$apiProbes      = Load-JsonFile -Path (Join-Path $CommonDir "api_probes.json") -Name "api_probes.json"
-$manufIndex     = Load-JsonFile -Path (Join-Path $ManufDir "_index.json") -Name "_index.json"
+$portsCommon    = Load-JsonFile -Path (Join-Path $DataDir "common\ports.json") -Name "ports.json"
 
 if ($simpleKeywords) { Write-Log "minerpoollist.json : $($simpleKeywords.Count) kulcsszo" "Green" }
-if ($poolsFull)      { Write-Log "miner_pools.json   : ver $($poolsFull.version)" "Green" }
-if ($portsCommon)    { Write-Log "ports.json         : betoltve" "Green" }
-if ($apiProbes)      { Write-Log "api_probes.json    : betoltve" "Green" }
-if ($manufIndex)     { Write-Log "manufacturers/_index.json : $($manufIndex.load_order.Count) fajl" "Green" }
-
-# Gyarto fajlok betoltese az index szerint
-$manufacturers = @()
-if ($manufIndex -and $manufIndex.load_order) {
-    foreach ($fname in $manufIndex.load_order) {
-        $fpath = Join-Path $ManufDir $fname
-        $obj = Load-JsonFile -Path $fpath -Name $fname
-        if ($obj) {
-            $manufacturers += $obj
-            Write-Log "  + $fname" "DarkGray"
-        }
-    }
-}
-Write-Log "Betoltott gyarto profilok: $($manufacturers.Count)" "Green"
+if ($portsCommon)    { Write-Log "ports.json betoltve" "Green" }
 Write-Log ""
 
-# --- 2. Korabbi LOG-ok keresese (opcionalis bemenet) ---
-Write-Log "=== 2. KORABBI LOG FAJLOK ===" "Yellow"
+# --- LOG fajlok listazasa menuben ---
+Write-Log "=== LOG FAJLOK ===" "Yellow"
 
-$today = Get-Date -Format "yyyyMMdd"
 $allLogs = @()
 if (Test-Path $LogDir) {
-    $allLogs = Get-ChildItem -Path $LogDir -Filter "*.txt" -File -ErrorAction SilentlyContinue |
-               Sort-Object LastWriteTime -Descending
+    $allLogs = @(Get-ChildItem -Path $LogDir -Filter "*.txt" -File -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending)
 }
 
-$todayLogs = $allLogs | Where-Object {
-    $_.Name -match $today -or $_.LastWriteTime.Date -eq (Get-Date).Date
+if ($allLogs.Count -eq 0) {
+    Write-Log "Nincs LOG fajl: $LogDir" "Red"
+    Write-Log "=== MinerSearch VEGE (nincs bemenet) ===" "Cyan"
+    return
 }
+
+$today = Get-Date -Format "yyyyMMdd"
+$menuItems = @()
+$i = 0
+
+Write-Host ""
+Write-Host "Elerheto LOG fajlok:" -ForegroundColor Cyan
+foreach ($l in $allLogs) {
+    $i++
+    $mark = ""
+    if ($l.Name -match $today -or $l.LastWriteTime.Date -eq (Get-Date).Date) { $mark = " [MA]" }
+    Write-Host ("  {0,2}. {1}  ({2}){3}" -f $i, $l.Name, $l.LastWriteTime.ToString("yyyy-MM-dd HH:mm"), $mark)
+    $menuItems += $l
+}
+
+Write-Host ""
+Write-Host "  A  = osszes mai LOG" -ForegroundColor DarkCyan
+Write-Host "  L  = legutolso LOG csak" -ForegroundColor DarkCyan
+Write-Host "  S  = sorszam (pl. 1 vagy 1,3)" -ForegroundColor DarkCyan
+Write-Host "  Q  = kilepes" -ForegroundColor DarkCyan
+Write-Host ""
+$choice = Read-Host "Valasztas"
 
 $selectedLogs = @()
-if ($todayLogs) {
-    Write-Log "Mai LOG fajlok: $($todayLogs.Count) db" "Green"
-    $selectedLogs = @($todayLogs | Select-Object -First 3)
-    foreach ($l in $selectedLogs) { Write-Log "  -> $($l.Name)" "DarkGray" }
-} else {
-    Write-Log "Nincs mai LOG fajl." "Yellow"
-    if ($allLogs.Count -gt 0) {
-        Write-Log "Legutobbi elerheto fajlok:" "Yellow"
-        $allLogs | Select-Object -First 5 | ForEach-Object {
-            Write-Log ("  {0}  ({1})" -f $_.Name, $_.LastWriteTime.ToString("yyyy-MM-dd HH:mm")) "DarkGray"
+switch -Regex ($choice.Trim().ToUpper()) {
+    '^Q$' {
+        Write-Log "Felhasznalo kilepett." "Yellow"
+        return
+    }
+    '^A$' {
+        $selectedLogs = @($allLogs | Where-Object {
+            $_.Name -match $today -or $_.LastWriteTime.Date -eq (Get-Date).Date
+        })
+        if ($selectedLogs.Count -eq 0) {
+            Write-Log "Nincs mai LOG. Legutolso lesz hasznalva." "Yellow"
+            $selectedLogs = @($allLogs[0])
         }
-        $answer = Read-Host "Feldolgozzak a legutolso (nem mai) LOG fajlt is? (I/N)"
-        if ($answer -match '^[IiYy]') {
-            $selectedLogs = @($allLogs | Select-Object -First 1)
-            Write-Log "Valasztott: $($selectedLogs[0].Name)" "Cyan"
-        } else {
-            Write-Log "Regi LOG kihagyva." "Yellow"
+    }
+    '^L$' {
+        $selectedLogs = @($allLogs[0])
+    }
+    default {
+        $nums = $choice -split '[,;\s]+' | Where-Object { $_ -match '^\d+$' }
+        foreach ($n in $nums) {
+            $idx = [int]$n - 1
+            if ($idx -ge 0 -and $idx -lt $menuItems.Count) {
+                $selectedLogs += $menuItems[$idx]
+            }
         }
-    } else {
-        Write-Log "Nincs egyaltalan LOG fajl." "Yellow"
+        if ($selectedLogs.Count -eq 0) {
+            Write-Log "Ervenytelen valasztas -> legutolso LOG." "Yellow"
+            $selectedLogs = @($allLogs[0])
+        }
     }
 }
+
+Write-Log "Kivalasztott LOG-ok: $($selectedLogs.Count) db"
+foreach ($s in $selectedLogs) { Write-Log "  -> $($s.Name)" "DarkGray" }
 Write-Log ""
 
-# --- 3. Kulcsszo + port kereses a kivalasztott LOG-okban ---
-Write-Log "=== 3. LOG ELEMZES (pool kulcsszavak + portok) ===" "Yellow"
+# --- Elemzes ---
+Write-Log "=== ELEMZES ===" "Yellow"
 
 $foundKeywords = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 $foundPorts    = [System.Collections.Generic.HashSet[int]]::new()
@@ -131,11 +139,11 @@ $foundIps      = [System.Collections.Generic.HashSet[string]]::new()
 
 $checkPorts = @(22, 80, 443, 4028, 4433, 50051, 8080, 9999, 3333, 3357, 1010, 8888)
 if ($portsCommon -and $portsCommon.priority_scan) {
-    $checkPorts = $portsCommon.priority_scan + $portsCommon.stratum_common | Select-Object -Unique
+    $checkPorts = @($portsCommon.priority_scan) + @($portsCommon.stratum_common) | Select-Object -Unique
 }
 
 foreach ($log in $selectedLogs) {
-    Write-Log "Elemzes: $($log.Name)" "Cyan"
+    Write-Log "Feldolgozas: $($log.Name)" "Cyan"
     $content = Get-Content -Path $log.FullName -Raw -ErrorAction SilentlyContinue
     if (-not $content) {
         Write-Log "  Ures vagy olvashatatlan." "Red"
@@ -151,51 +159,45 @@ foreach ($log in $selectedLogs) {
     }
 
     foreach ($p in $checkPorts) {
-        if ($content -match ":$p\b" -or $content -match "\bport\s+$p\b") {
-            [void]$foundPorts.Add([int]$p)
-        }
+        if ($content -match ":$p\b") { [void]$foundPorts.Add([int]$p) }
     }
 
-    # Egyszeru IP gyujtes (192.168.x.x es hasonlok)
     $ipMatches = [regex]::Matches($content, '\b(?:192\.168|10\.|172\.(?:1[6-9]|2[0-9]|3[01]))\.\d{1,3}\.\d{1,3}\b')
-    foreach ($m in $ipMatches) {
-        [void]$foundIps.Add($m.Value)
-    }
+    foreach ($m in $ipMatches) { [void]$foundIps.Add($m.Value) }
 }
 
+Write-Log ""
 if ($foundKeywords.Count -gt 0) {
-    Write-Log "Talalt pool/miner kulcsszavak:" "Green"
+    Write-Log "Talalt kulcsszavak:" "Green"
     $foundKeywords | Sort-Object | ForEach-Object { Write-Log "  - $_" "Green" }
 } else {
-    Write-Log "Nem talalhato ismert pool kulcsszo a vizsgalt LOG-okban." "DarkGray"
+    Write-Log "Nincs ismert pool kulcsszo." "DarkGray"
 }
 
 if ($foundPorts.Count -gt 0) {
-    Write-Log "Emlegetett relevans portok: $($foundPorts -join ', ')" "Yellow"
+    Write-Log "Relevans portok: $($foundPorts -join ', ')" "Yellow"
 }
 
 if ($foundIps.Count -gt 0) {
-    Write-Log "LOG-bol kinyert belso IP-k ($($foundIps.Count) db):" "Yellow"
+    Write-Log "Kinyert belso IP-k ($($foundIps.Count)):" "Yellow"
     $foundIps | Sort-Object | ForEach-Object { Write-Log "  $_" "DarkGray" }
+} else {
+    Write-Log "Nem talalhato belso IP a LOG-okban." "DarkGray"
 }
-Write-Log ""
 
-# --- 4. Elokeszites a kovetkezo lepeshez (MinerStatus) ---
-Write-Log "=== 4. OSSZEFOGLALO / KOVETKEZO LEPES ===" "Yellow"
-Write-Log "Betoltott gyarto profilok : $($manufacturers.Count)"
-Write-Log "Talalt kulcsszavak        : $($foundKeywords.Count)"
-Write-Log "Talalt portok             : $($foundPorts.Count)"
-Write-Log "Kinyert IP-k              : $($foundIps.Count)"
+# IP lista mentese kulon, hogy a MinerStatus konnyen olvassa
+$ipListFile = Join-Path $LogDir "MinerSearch_IPs_$timestamp.txt"
+$foundIps | Sort-Object | Set-Content -Path $ipListFile -Encoding UTF8
+Write-Log "IP lista mentve: $ipListFile" "Green"
+
 Write-Log ""
-Write-Log "A reszletes lekerdezest a MinerStatus.ps1 vegzi majd."
-Write-Log "  - Alap probe-ok: version / summary / pools (4028)"
-Write-Log "  - Web UI check (80/8080)"
-Write-Log "  - SSH banner (22)"
-Write-Log "  - Gyarto-specifikus bovitett parancsok a manufacturers/*.json-bol"
 Write-Log ""
 Write-Log "=== MinerSearch VEGE ===" "Cyan"
 Write-Log "LOG mentve: $LogFile" "Green"
 
-Write-Host ""
-Write-Host "Nyomj Enter-t a kilepeshez..." -ForegroundColor DarkGray
-Read-Host | Out-Null
+# Opcionalis LOG megnyitas (onallo futtataskor hasznalhato)
+$openLog = Read-Host "Megnyissuk a LOG fajlt Notepad-dal? (I/N)"
+if ($openLog -match '^[IiYy]') {
+    try { Start-Process notepad.exe -ArgumentList $LogFile } catch { Write-Log "Notepad inditas sikertelen" "Yellow" }
+}
+# Visszater a hivohoz (ha volt hivo)
