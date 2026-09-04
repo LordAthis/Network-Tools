@@ -1,0 +1,56 @@
+{
+  "id": "bitmain_sha256",
+  "manufacturer": "Bitmain",
+  "brand": "Antminer",
+  "algorithm": "SHA-256",
+  "coins": ["BTC", "BCH"],
+  "updated": "2026-09-04",
+  "note": "Uj modellek elol. Regi (S9 stb.) a vegere kerulhet, konnyen torolheto.",
+  "ports": {
+    "web_ui": [80, 8080],
+    "api": [4028],
+    "ssh": 22
+  },
+  "api_type": "cgminer/bmminer JSON over TCP",
+  "basic_commands": [
+    {"cmd": "version", "payload": "{\"command\":\"version\"}"},
+    {"cmd": "summary", "payload": "{\"command\":\"summary\"}"},
+    {"cmd": "pools", "payload": "{\"command\":\"pools\"}"}
+  ],
+  "extended_commands": [
+    {"cmd": "stats", "payload": "{\"command\":\"stats\"}"},
+    {"cmd": "devs", "payload": "{\"command\":\"devs\"}"},
+    {"cmd": "edevs", "payload": "{\"command\":\"edevs\"}"},
+    {"cmd": "estats", "payload": "{\"command\":\"estats\"}", "desc": "Extended diagnostic"}
+  ],
+  "ssh": {
+    "port": 22,
+    "banner_hints": ["dropbear", "busybox"],
+    "notes": "Gyakran engedlyezve. Default creds historikusan root/root - NE brute-force."
+  },
+  "mac_oui": ["E0-A5-09"],
+  "models": [
+    {"name": "S23 Hyd 3U", "hashrate": "1160 TH/s", "status": "current"},
+    {"name": "S23 Hydro", "hashrate": "580 TH/s", "status": "current"},
+    {"name": "S23", "hashrate": "318 TH/s", "status": "current"},
+    {"name": "S21 XP Hydro", "hashrate": "473-500 TH/s", "status": "current"},
+    {"name": "S21 XP", "hashrate": "270 TH/s", "status": "current"},
+    {"name": "S21 Pro", "hashrate": "234 TH/s", "status": "current"},
+    {"name": "S21", "hashrate": "200 TH/s", "status": "current"},
+    {"name": "S19 XP", "hashrate": "141 TH/s", "status": "legacy"},
+    {"name": "S19j Pro", "status": "legacy"},
+    {"name": "S19", "status": "legacy"},
+    {"name": "S17 / T17", "status": "legacy"},
+    {"name": "S9", "status": "obsolete", "note": "Meg elofordulhat regi farmokban"}
+  ],
+  "custom_firmware": ["Braiins OS", "Braiins OS+", "LuxOS", "VNish", "Hiveon"],
+  "braiins_os": {
+    "api_port": 4028,
+    "grpc_port": 50051
+  },
+  "log_retrieval": [
+    "Web UI: System / Log",
+    "API: estats + summary",
+    "SSH: /var/log vagy miner specifikus path"
+  ]
+}
