@@ -177,7 +177,7 @@ if ($logFiles.Count -gt 0) {
     Write-Host "  Nincs feldolgozando LOG fajl. A script kilep a LOG reszbol." -ForegroundColor Yellow
 }
 
-# --- 4. Helyi elokeszites a hallaati scanhez (vaz) ---
+# --- 4. Helyi elokeszites a hálózati scanhez (vaz) ---
 Write-Host ""
 Write-Host "============================================================" -ForegroundColor Cyan
 Write-Host "  Kovetkezo lepesek (meg nem implementalt - vaz):" -ForegroundColor Cyan
