@@ -1,0 +1,9 @@
+# NetworkDiag MAX - futas kozben keletkezo log fajlok kizarasa
+# Ezek valos halozati adatokat tartalmaznak (IP-k, MAC cimek, hostnevek,
+# nyitott portok, event log kivonatok) - ezert nem valok verziokezelobe.
+LOG/
+win/LOG/
+**/LOG/*.txt
+
+# A datas\ mappa (iplist.json, minerpoollist.json) VISSZASZANDEKOSAN nincs itt -
+# az mehet verziokezelobe, mert csak konfiguracios listakat tartalmaz.
