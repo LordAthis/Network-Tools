@@ -1,0 +1,38 @@
+{
+  "version": "1.0",
+  "updated": "2026-09-04",
+  "description": "MAC-cim OUI (gyarto-elotag) -> gyarto/kategoria lista. Cel: nema/rejtett eszkozok (miner, TV, telefon, switch, router, IoT) beazonositasa akkor is, ha nincs hostnev vagy nyitott port.",
+  "how_it_works": "Az OUI a MAC-cim elso 3 byte-ja (pl. E0:A5:09:xx:xx:xx eseten E0A509). Egy eszkoz MAC-cime az ARP tablabol mindig lathato ugyanazon a helyi halozaton, MEG AKKOR IS, ha az eszkoz pingre/portra nem valaszol - ezert ez a legrobusztusabb 'nema eszkoz' felismeres.",
+  "confidence_note": "Csak olyan bejegyzes van benne, amit ez a projekt tenylegesen ellenorzott (lasd 'confidence' mezo). A legtobb gyarto (kulonosen a kisebb ASIC miner cegek) TOBB TUCAT OUI blokkot is hasznalhat, amit egy kezzel irt lista sosem fed le teljesen. A pontos, teljes lefedeshez hasznald a Build-OuiList.ps1 segedscriptet, ami a hivatalos IEEE adatbazisbol szuri ki a relevans gyartokat.",
+  "categories": ["miner", "computer", "network", "tv", "phone", "iot", "camera", "gaming", "printer"],
+  "entries": [
+    {
+      "oui": "E0A509",
+      "vendor": "Bitmain Technologies Inc",
+      "category": "miner",
+      "note": "Antminer sorozat (S9-S23, L-sorozat, Z-sorozat, KS-sorozat). Egyetlen regisztralt blokk.",
+      "confidence": "verified_ieee_2026-09-04"
+    },
+    {
+      "oui": "B827EB",
+      "vendor": "Raspberry Pi Foundation",
+      "category": "computer",
+      "note": "Raspberry Pi 1-3 modellek. Gyakori miner-vezerlo panel (pl. Bitaxe alapok) es IoT projektek alapja.",
+      "confidence": "verified_ieee_2026-09-04"
+    },
+    {
+      "oui": "DCA632",
+      "vendor": "Raspberry Pi Trading Ltd",
+      "category": "computer",
+      "note": "Ujabb Raspberry Pi modellek (4-es SoC-tol).",
+      "confidence": "verified_ieee_2026-09-04"
+    },
+    {
+      "oui": "E45F01",
+      "vendor": "Raspberry Pi Trading Ltd",
+      "category": "computer",
+      "note": "Ujabb Raspberry Pi modellek, masodik blokk.",
+      "confidence": "verified_ieee_2026-09-04"
+    }
+  ]
+}
