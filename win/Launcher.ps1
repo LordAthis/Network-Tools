@@ -1,7 +1,7 @@
 # ============================================================
-#  Launcher.ps1  -  Hálózati eszközök indító menü
-#  Bat és PS1 scriptek indítása ugyanabban az ablakban
-#  Futtatási házirend: Process szinten Bypass (semmit nem tilt)
+#  Launcher.ps1  -  Halozati eszkozok indito menu
+#  Bat es PS1 scriptek inditasa ugyanabban az ablakban
+#  Futtatasi hazirend: Process szinten Bypass (semmit nem tilt)
 # ============================================================
 
 $Host.UI.RawUI.WindowTitle = "Halozati Eszkozok - Launcher"
@@ -18,8 +18,8 @@ Clear-Host
 $ScriptRoot = $PSScriptRoot
 if (-not $ScriptRoot) { $ScriptRoot = Get-Location }
 
-# Elérhető scriptek
-# Később csak ezt a tömböt kell bővíteni / módosítani
+# Elerheto scriptek
+# Kesobb csak ezt a tombot kell boviteni / modositani
 $Scripts = @(
     @{
         Number      = "1"
@@ -97,6 +97,20 @@ $Scripts = @(
         File        = "MinerStatus.ps1"
         Type        = "ps1"
         Description = "Aktiv miner lekerdezes (API / web / SSH probe)"
+    },
+    @{
+        Number      = "12"
+        Name        = "LOGtoINDEX (osszes IP dashboard)"
+        File        = "LOGtoINDEX.ps1"
+        Type        = "ps1"
+        Description = "Az osszes LOG fajlbol kattinthato IP-tablazatot general bongeszoben"
+    },
+    @{
+        Number      = "13"
+        Name        = "TrafficSnapshot"
+        File        = "TrafficSnapshot.ps1"
+        Type        = "ps1"
+        Description = "Helyi gepi forgalom pillanatkep (pktmon) - csak ezen a gepen atmeno forgalom"
     }
 )
 
@@ -180,7 +194,7 @@ function Start-Script {
     Read-Host | Out-Null
 }
 
-# Fő ciklus
+# Fo ciklus
 do {
     Show-Menu
     $choice = Read-Host "  Valasztas"
