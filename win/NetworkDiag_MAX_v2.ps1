@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 5.2
 <#
     NetworkDiag MAX v2 - Maximalisan agressziv LAN + mobilnet diagnosztika
     Cel: semmi se maradjon rejtve - ASIC minerek, "nema" switchek, portolt/tiltott
@@ -24,6 +24,21 @@
                                       pl. tavsegitseg (TeamViewer) es felho szinkron (OneDrive) -
                                       ezek kulon, "nem gyanus" kategoriaban jelennek meg a logban
                                       pl.: ["teamviewer","onedrive","googledrive","dropbox"]
+        datas\disableips.json      - kizarando IP-k/mintak - hamis pozitivok elkerulesehez
+                                      (a broadcast/multicast cimeket a script MINDIG automatikusan
+                                      kiszuri, ez a lista tovabbi, kezzel felvett kivetelekre valo)
+                                      pl.: ["10.0.0.99","192.168.1.254"]
+        datas\smartlist.json       - TV/okoseszkoz/halozati eszkoz felismero kulcsszavak
+                                      (hostname/NetBIOS nev alapjan, v1: csak nev-egyezes)
+                                      pl.: ["smarttv","chromecast","mikrotik","hikvision"]
+        datas\macouilist.json      - MAC-cim (OUI/gyarto-elotag) -> gyarto/kategoria lista.
+                                      A legrobusztusabb felismeres, mert MAC MINDIG lathato
+                                      ARP-bol, meg akkor is, ha az eszkoz semmi masra nem
+                                      valaszol (pl. hibas ASIC miner web klienssel).
+                                      Bovitesehez hasznald a Build-OuiList.ps1 scriptet.
+        datas\Routers.json         - ismert routerek listaja (topologia terkepezeshez)
+        datas\Switchs.json         - ismert switchek listaja (topologia terkepezeshez,
+                                      a 6/C SNMP-felderites innen tudja, mi mar ismert)
     Ezek szerkesztesevel a keresesi tartomany es a felismeres bovitheto
     a script kodjanak modositasa nelkul.
 
@@ -39,6 +54,11 @@ param(
     [string]$IpListPath = "$PSScriptRoot\datas\iplist.json",           # vizsgalando alhalok listaja (JSON tomb) - a script melletti datas\ mappaban
     [string]$MinerPoolListPath = "$PSScriptRoot\datas\minerpoollist.json",  # ismert mining pool kulcsszavak (JSON tomb) - a script melletti datas\ mappaban
     [string]$KnownServicesListPath = "$PSScriptRoot\datas\knownservices.json",  # ismert/legitim kulso szolgaltatasok (TeamViewer, OneDrive stb.) - JSON tomb
+    [string]$DisableIpsListPath = "$PSScriptRoot\datas\disableips.json",  # kizarando IP-k/mintak (hamis pozitivok: broadcast, multicast, stb.) - JSON tomb
+    [string]$SmartListPath = "$PSScriptRoot\datas\smartlist.json",  # okoseszkoz/TV/halozati eszkoz felismero kulcsszavak - JSON tomb
+    [string]$MacOuiListPath = "$PSScriptRoot\datas\macouilist.json",  # MAC-cim (OUI) -> gyarto/kategoria lista - JSON objektum
+    [string]$RoutersListPath = "$PSScriptRoot\datas\Routers.json",  # ismert routerek listaja - topologia terkepezeshez
+    [string]$SwitchesListPath = "$PSScriptRoot\datas\Switchs.json",  # ismert switchek listaja - topologia terkepezeshez
     [string]$LogDir = "$PSScriptRoot\LOG"  # a kimeneti log fajlok mappaja - a script melletti LOG\ mappa
 )
 
@@ -55,7 +75,7 @@ function Test-Admin {
 if (-not $NoElevation -and -not (Test-Admin)) {
     if ($ScriptPath) {
         Write-Host "Jogosultsag emeles szukseges. Ujrainditas adminisztratorkent..." -ForegroundColor Yellow
-        Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -NoElevation -ThrottleLimit $ThrottleLimit -PortThrottleLimit $PortThrottleLimit -IpListPath `"$IpListPath`" -MinerPoolListPath `"$MinerPoolListPath`" -KnownServicesListPath `"$KnownServicesListPath`" -LogDir `"$LogDir`""
+        Start-Process powershell.exe -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" -NoElevation -ThrottleLimit $ThrottleLimit -PortThrottleLimit $PortThrottleLimit -IpListPath `"$IpListPath`" -MinerPoolListPath `"$MinerPoolListPath`" -KnownServicesListPath `"$KnownServicesListPath`" -DisableIpsListPath `"$DisableIpsListPath`" -SmartListPath `"$SmartListPath`" -MacOuiListPath `"$MacOuiListPath`" -RoutersListPath `"$RoutersListPath`" -SwitchesListPath `"$SwitchesListPath`" -LogDir `"$LogDir`""
         exit
     } else {
         Write-Host "FIGYELEM: A script nem .ps1 fajlbol fut (pl. irm | iex), ezert automatikus admin-emeles nem lehetseges." -ForegroundColor Red
@@ -225,6 +245,26 @@ function Get-NetworkCidr {
     } catch { return $null }
 }
 
+# --- CIDR -> az adott alhalo broadcast cime (pl. "192.168.1.0/24" -> "192.168.1.255")
+#     Ez kell ahhoz, hogy a broadcast cimet a "nema eszkoz" felismeresbol kizarjuk -
+#     a broadcast cim SOHA nem valodi eszkoz, hanem protokollszintu cim.
+function Get-BroadcastAddress {
+    param([string]$NetworkCidr)
+    try {
+        $parts = $NetworkCidr -split '/'
+        $ipBytes = ([System.Net.IPAddress]$parts[0]).GetAddressBytes()
+        [Array]::Reverse($ipBytes)
+        $networkInt = [BitConverter]::ToUInt32($ipBytes, 0)
+        $prefix = [int]$parts[1]
+        $hostBits = 32 - $prefix
+        $hostMask = if ($hostBits -ge 32) { [uint32]::MaxValue } else { ([uint32]1 -shl $hostBits) - [uint32]1 }
+        $broadcastInt = $networkInt -bor $hostMask
+        $bytes = [BitConverter]::GetBytes([uint32]$broadcastInt)
+        [Array]::Reverse($bytes)
+        return ([System.Net.IPAddress]$bytes).ToString()
+    } catch { return $null }
+}
+
 # --- CIDR -> host IP lista (max ~1022 host, biztonsagi korlat)
 function Get-SubnetHosts {
     param([string]$NetworkCidr)
@@ -331,6 +371,70 @@ function Test-KnownServiceIndicator {
     param([string]$HostnameOrText)
     if ([string]::IsNullOrWhiteSpace($HostnameOrText)) { return $null }
     foreach ($kw in $KnownServiceKeywords) {
+        if ($HostnameOrText -match [regex]::Escape($kw)) { return $kw }
+    }
+    return $null
+}
+
+# --- Kizarando IP-k / mintak listaja (hamis pozitivok: broadcast, multicast, protokoll-cimek, stb.)
+#     Ezek NEM valodi eszkozok, hanem protokollszintu cimek, amik az ARP tablaban
+#     "Permanent" bejegyzeskent szoktak megjelenni annak ellenere, hogy senki nem valaszol
+#     rajuk pingre - a script korabban tevesen "nema" eszkoznek vette oket.
+#     A multicast (224.0.0.0/4) es a 255.255.255.255 tartomanyt a script MINDIG,
+#     programozottan is kiszuri (lasd Test-IsNoiseAddress), ez a lista csak a
+#     TOVABBI, kezzel felvett kivetelekre valo (pl. egy adott nyomtato/eszkoz IP-je,
+#     ami tudottan false-positive-ot ad).
+#     Fajlbol toltve: /datas/disableips.json (JSON tomb, pl. ["192.168.1.255","224.0.0.251", "10.0.0.99"])
+$DefaultDisableIps = @(
+    "224.0.0.22", "224.0.0.251", "224.0.0.252", "239.255.255.250", "255.255.255.255"
+)
+$DisableIps = Get-JsonList -Path $DisableIpsListPath -DefaultValue $DefaultDisableIps -Label "Kizarando IP lista"
+
+function Test-IsNoiseAddress {
+    param(
+        [string]$IP,
+        [string[]]$BroadcastAddresses = @(),
+        [string[]]$DisabledIps = @()
+    )
+    if ([string]::IsNullOrWhiteSpace($IP)) { return $true }
+    if ($IP -eq "255.255.255.255" -or $IP -eq "0.0.0.0") { return $true }
+    $octets = $IP -split '\.'
+    if ($octets.Count -eq 4) {
+        try {
+            $first = [int]$octets[0]
+            if ($first -ge 224 -and $first -le 239) { return $true }  # multicast (224.0.0.0/4, ide esik az SSDP 239.x is)
+        } catch { }
+    }
+    if ($BroadcastAddresses -contains $IP) { return $true }  # a vizsgalt subnetek sajat broadcast cime (pl. .255)
+    if ($DisabledIps -contains $IP) { return $true }
+    foreach ($pattern in $DisabledIps) {
+        if ($pattern -match '[\*\?]' -and $IP -like $pattern) { return $true }  # wildcard tamogatas, pl. "224.*"
+    }
+    return $false
+}
+
+# --- Okoseszkoz / TV / halozati eszkoz felismero kulcsszavak (hostname / NetBIOS alapjan)
+#     KEZDETI (v1) valtozat: csak nev alapu egyezes. Egy kesobbi bovitesben erdemes lenne
+#     MAC-cim (OUI - gyarto-prefix) alapu felismerest is hozzatenni, mert sok okoseszkoz
+#     (pl. IoT szenzor) nem ad ki ertelmes hostnevet, csak a MAC-cim arulja el a gyartot.
+#     Fajlbol toltve: /datas/smartlist.json (JSON tomb, pl. ["smarttv","chromecast","hue", ...])
+$DefaultSmartDeviceKeywords = @(
+    "smarttv","android-tv","androidtv","tizen","webos","bravia","aquos",
+    "samsung","lg-","sony","philips","hisense","tcl-","panasonic","vizio",
+    "roku","chromecast","google-home","googlehome","nest-","firetv","fire-tv","appletv","apple-tv",
+    "xbox","playstation","ps4","ps5","nintendo","switch-",
+    "sonos","hue-bridge","shelly","tasmota","esp32","esp8266","sonoff","tuya","tplink","tp-link","xiaomi","mi-router",
+    "printer","hp-print","canon","epson","brother",
+    "hikvision","dahua","reolink","foscam","axis-",
+    "mikrotik","ubnt","unifi","tenda","dlink","d-link","netgear","asus-router","zyxel","huawei-",
+    "raspberrypi","raspberry","esphome"
+)
+$SmartDeviceKeywords = Get-JsonList -Path $SmartListPath -DefaultValue $DefaultSmartDeviceKeywords -Label "Okoseszkoz felismero lista"
+
+function Test-SmartDeviceIndicator {
+    param([string]$HostnameOrText)
+    if ([string]::IsNullOrWhiteSpace($HostnameOrText)) { return $null }
+    foreach ($kw in $SmartDeviceKeywords) {
         if ($HostnameOrText -match [regex]::Escape($kw)) { return $kw }
     }
     return $null
@@ -472,6 +576,15 @@ $AllSubnets = @($KnownSubnets + $AutoSubnets + $ExtraSubnets) | Select-Object -U
 Write-Log "Vizsgalando alhalok (fix + automatikusan felismert + extra):"
 $AllSubnets | ForEach-Object { Write-Log "  $_" }
 
+# A vizsgalt alhalok sajat broadcast cimeinek kiszamitasa (pl. .255 egy /24-nel) -
+# ezeket sose vegyuk valodi eszkoznek, meg akkor sem, ha "Permanent" ARP bejegyzeskent latszanak.
+$BroadcastAddresses = New-Object System.Collections.Generic.List[string]
+foreach ($s in $AllSubnets) {
+    $b = Get-BroadcastAddress -NetworkCidr $s
+    if ($b) { $BroadcastAddresses.Add($b) }
+}
+Write-Log "Kiszamitott broadcast cimek (ezek automatikusan kizarva a nema-eszkoz listabol): $($BroadcastAddresses -join ', ')"
+
 # ==================== 5. AGGRESSZIV, PARHUZAMOSITOTT PING-SWEEP ====================
 Write-Log ""
 Write-Log "=== 5. AGGRESSZIV PING-SWEEP (runspace pool, 3 probalkozas/host, throttle=$ThrottleLimit) ===" "Cyan"
@@ -540,14 +653,23 @@ $AliveHosts | Sort-Object | ForEach-Object { Write-Log "  $_" }
 Write-Log ""
 Write-Log "=== 5/B. CSAK ARP-BAN LATHATO, PINGRE NEM VALASZOLO (NEMA) ESZKOZOK ===" "Cyan"
 $ArpOnlyHosts = [System.Collections.Generic.List[string]]::new()
+$FilteredNoiseCount = 0
 foreach ($n in $Neighbors4) {
     if ($n.State -in @("Reachable","Stale","Permanent") -and $n.IPAddress -and ($AliveHosts -notcontains $n.IPAddress)) {
+        # FONTOS JAVITAS: a broadcast (pl. x.x.x.255) es multicast (224.0.0.0/4, pl. mDNS/SSDP)
+        # cimek rendszeresen "Permanent" ARP bejegyzeskent latszanak, de NEM valodi eszkozok -
+        # ezeket itt kiszurjuk, kulonben hamis "nema eszkoz" talalatok keletkeznek.
+        if (Test-IsNoiseAddress -IP $n.IPAddress -BroadcastAddresses $BroadcastAddresses -DisabledIps $DisableIps) {
+            $FilteredNoiseCount++
+            continue
+        }
         $ArpOnlyHosts.Add($n.IPAddress)
         Write-Log "  NEMA (ARP-ban van, pingre nem valaszol): $($n.IPAddress) | MAC: $($n.LinkLayerAddress)" "Magenta"
     }
 }
+Write-Log "Kiszurt protokollszintu (broadcast/multicast) ARP bejegyzes: $FilteredNoiseCount (ezek nem valodi eszkozok)"
 if ($ArpOnlyHosts.Count -eq 0) {
-    Write-Log "Nincs ilyen eszkoz - minden ARP-bejegyzes valaszolt pingre is."
+    Write-Log "Nincs valodi nema eszkoz - minden tenyleges ARP-bejegyzes valaszolt pingre is."
 } else {
     Write-Log "Ezek az eszkozok ICMP-t (pinget) blokkolnak, de fizikailag jelen vannak a halozaton - gyanusak lehetnek (miner, rejtett switch, tuzfalazott gep)." "Yellow"
 }
@@ -564,11 +686,12 @@ $MinerPorts  = @(1800, 3333, 3334, 3335, 3336, 3357, 4028, 4444, 5555, 6666, 777
                   8332, 8333, 9332, 9333, 9999, 14433, 14444, 45700, 8888, 9998)
 $AllPorts = ($CommonPorts + $MinerPorts) | Select-Object -Unique
 
-# 6/A - gyors, host-szintu metaadatok (hostname, MAC, NetBIOS)
+# 6/A - gyors, host-szintu metaadatok (hostname, MAC, NetBIOS, okoseszkoz-tipus)
 $HostMeta = @{}
+$SmartDeviceHits = [System.Collections.Generic.List[string]]::new()
 foreach ($ip in $InvestigateTargets) {
     Write-Log "--- $ip ---" "Yellow"
-    $meta = [ordered]@{ Hostname = $null; MAC = $null; NetBIOS = $null }
+    $meta = [ordered]@{ Hostname = $null; MAC = $null; NetBIOS = $null; DeviceType = $null }
 
     try {
         $dns = [System.Net.Dns]::GetHostEntry($ip)
@@ -602,7 +725,26 @@ foreach ($ip in $InvestigateTargets) {
         }
     } catch { }
 
+    # Okoseszkoz/TV/halozati eszkoz felismeres a hostname + NetBIOS szoveg alapjan (v1: csak nev-egyezes,
+    # MAC-OUI/gyarto alapu felismeres kesobbi bovites lehet).
+    $deviceTextToCheck = "$($meta.Hostname) $($meta.NetBIOS)"
+    $deviceMatch = Test-SmartDeviceIndicator -HostnameOrText $deviceTextToCheck
+    if ($deviceMatch) {
+        $meta.DeviceType = $deviceMatch
+        $line = "$ip -> valoszinu eszkoztipus: $deviceMatch (nev alapjan: '$($meta.Hostname)')"
+        $SmartDeviceHits.Add($line)
+        Write-Log "  ESZKOZTIPUS (valoszinu, nev alapjan): $deviceMatch" "Green"
+    }
+
     $HostMeta[$ip] = $meta
+}
+
+if ($SmartDeviceHits.Count -gt 0) {
+    Write-Log ""
+    Write-Log "Felismert okoseszkozok/TV-k/halozati eszkozok szama: $($SmartDeviceHits.Count)" "Green"
+} else {
+    Write-Log ""
+    Write-Log "Nev alapjan nem sikerult okoseszkozt/TV-t/halozati eszkozt beazonositani (sok IoT eszkoz nem ad ki ertelmes hostnevet - ez normalis)." "Yellow"
 }
 
 # 6/B - parhuzamositott portscan minden celhoston (host x port kombinaciok egyszerre)
@@ -658,6 +800,158 @@ foreach ($grp in $PortResultsByIp) {
         $SuspiciousMinerHosts.Add($ip)
         Write-Log "  *** GYANUS: ismert miner/stratum port nyitva ezen az eszkozon: $($minerOpen -join ', ') ***" "Red"
     }
+}
+
+# ==================== 6/B. MAC-CIM (OUI) ALAPU GYARTO/ESZKOZ FELISMERES ====================
+# Ez a legrobusztusabb felismeres, mert a MAC-cim az ARP tablabol MINDIG lathato,
+# fuggetlenul attol, hogy az eszkoz valaszol-e pingre vagy van-e nyitott portja.
+# Ez oldja meg a "hibasan mukodo miner, aminek nem tolt be a webes kliense" esetet is:
+# a MAC-cim gyarto-elotagja (OUI) akkor is elarulja, mi az eszkoz, ha minden mas nema.
+Write-Log ""
+Write-Log "=== 6/B. MAC-CIM (OUI) ALAPU GYARTO/ESZKOZ FELISMERES ===" "Cyan"
+$MacOuiData = $null
+if (Test-Path $MacOuiListPath) {
+    try {
+        $MacOuiData = Get-Content -Path $MacOuiListPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+        Write-Log "MAC OUI lista betoltve: $MacOuiListPath ($($MacOuiData.entries.Count) bejegyzes)" "Green"
+    } catch {
+        Write-Log "MAC OUI lista beolvasasi hiba ($MacOuiListPath): $_" "Red"
+    }
+} else {
+    Write-Log "MAC OUI lista nem talalhato ($MacOuiListPath) - ez a felismeres kimarad. Futtasd a Build-OuiList.ps1-et a bovitesehez." "Yellow"
+}
+
+$MacVendorHits = [System.Collections.Generic.List[string]]::new()
+if ($MacOuiData -and $MacOuiData.entries) {
+    foreach ($ip in $InvestigateTargets) {
+        $mac = $HostMeta[$ip].MAC
+        if (-not $mac) { continue }
+        $ouiNormalized = ($mac -replace '[^0-9A-Fa-f]', '').ToUpper()
+        if ($ouiNormalized.Length -lt 6) { continue }
+        $ouiNormalized = $ouiNormalized.Substring(0, 6)
+        $match = $MacOuiData.entries | Where-Object { $_.oui -eq $ouiNormalized } | Select-Object -First 1
+        if ($match) {
+            $line = "$ip (MAC: $mac) -> gyarto: $($match.vendor) | kategoria: $($match.category)"
+            $MacVendorHits.Add($line)
+            if ($match.category -eq "miner") {
+                Write-Log "  *** MAC ALAPJAN VALOSZINU ASIC MINER (fuggetlenul a ping/port valasztol): $line ***" "Red"
+            } else {
+                Write-Log "  $line" "Cyan"
+            }
+        }
+    }
+}
+if ($MacVendorHits.Count -eq 0) {
+    Write-Log "Nincs MAC-OUI egyezes a jelenlegi listaval (ez nem jelenti azt, hogy nincs ismeretlen eszkoz - a lista meg bovitheto, ld. Build-OuiList.ps1)."
+} else {
+    Write-Log "MAC-OUI alapjan felismert eszkozok szama: $($MacVendorHits.Count)" "Cyan"
+}
+
+# ==================== 6/C. SNMP ALAPU SWITCH/ROUTER FELDERITES (KISERLETI) ====================
+# A LEGTOBB unmanaged switch soha nem fog latszani (nincs sajat IP-je/protokollja).
+# A MANAGED switchek/routerek viszont sokszor valaszolnak SNMP-re (UDP 161, "public" community),
+# meg akkor is, ha pingre/webre nem. Ez KISERLETI funkcio: sajat kezzel irt, minimalis SNMPv1
+# GET csomagot kuld (nincs kulso fuggoseg/modul), es a valaszbol kiolvassa a sysDescr/sysName-t.
+# Ha hibas/nem vart valaszt kapsz, jelezd - ez a resz meg nem volt eles eszkozon tesztelve.
+Write-Log ""
+Write-Log "=== 6/C. SNMP ALAPU SWITCH/ROUTER FELDERITES (KISERLETI, UDP 161, community=public) ===" "Cyan"
+
+$SnmpScriptBlock = {
+    param($ip)
+    function Get-LastOctetString {
+        param([byte[]]$Bytes)
+        $i = 0; $lastValue = $null
+        while ($i -lt $Bytes.Length) {
+            $tag = $Bytes[$i]; $i++
+            if ($i -ge $Bytes.Length) { break }
+            $lenByte = $Bytes[$i]; $i++
+            $len = 0
+            if ($lenByte -lt 0x80) {
+                $len = $lenByte
+            } else {
+                $numBytes = $lenByte -band 0x7F
+                for ($k = 0; $k -lt $numBytes; $k++) {
+                    if ($i -ge $Bytes.Length) { break }
+                    $len = ($len -shl 8) -bor $Bytes[$i]; $i++
+                }
+            }
+            if ($tag -eq 0x04 -and ($i + $len) -le $Bytes.Length) {
+                $lastValue = [System.Text.Encoding]::ASCII.GetString($Bytes, $i, $len)
+            }
+            if (($tag -band 0x20) -ne 0) {
+                continue
+            } else {
+                $i += $len
+            }
+        }
+        return $lastValue
+    }
+
+    # SNMPv1 GetRequest, community "public", OID sysDescr.0 (1.3.6.1.2.1.1.1.0)
+    $sysDescrPacket = [byte[]]@(0x30,0x27,0x02,0x01,0x00,0x04,0x06,0x70,0x75,0x62,0x6C,0x69,0x63,0xA0,0x1A,0x02,0x01,0x01,0x02,0x01,0x00,0x02,0x01,0x00,0x30,0x0F,0x30,0x0D,0x06,0x09,0x2B,0x06,0x01,0x02,0x01,0x01,0x01,0x00,0x05,0x00)
+    # SNMPv1 GetRequest, community "public", OID sysName.0 (1.3.6.1.2.1.1.5.0)
+    $sysNamePacket  = [byte[]]@(0x30,0x27,0x02,0x01,0x00,0x04,0x06,0x70,0x75,0x62,0x6C,0x69,0x63,0xA0,0x1A,0x02,0x01,0x01,0x02,0x01,0x00,0x02,0x01,0x00,0x30,0x0F,0x30,0x0D,0x06,0x09,0x2B,0x06,0x01,0x02,0x01,0x01,0x05,0x00,0x05,0x00)
+
+    $result = [PSCustomObject]@{ IP = $ip; SysDescr = $null; SysName = $null; Responded = $false }
+    try {
+        $udp = New-Object System.Net.Sockets.UdpClient
+        $udp.Client.ReceiveTimeout = 700
+        $endpoint = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Parse($ip), 161)
+
+        try {
+            [void]$udp.Send($sysDescrPacket, $sysDescrPacket.Length, $endpoint)
+            $remoteEp = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, 0)
+            $resp = $udp.Receive([ref]$remoteEp)
+            $result.SysDescr = Get-LastOctetString -Bytes $resp
+            $result.Responded = $true
+        } catch { }
+
+        try {
+            [void]$udp.Send($sysNamePacket, $sysNamePacket.Length, $endpoint)
+            $remoteEp2 = New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, 0)
+            $resp2 = $udp.Receive([ref]$remoteEp2)
+            $result.SysName = Get-LastOctetString -Bytes $resp2
+            $result.Responded = $true
+        } catch { }
+
+        $udp.Close()
+    } catch { }
+    return $result
+}
+
+$SnmpResults = Invoke-Parallel -InputItems $InvestigateTargets -ScriptBlock $SnmpScriptBlock -Throttle 40
+$SnmpHits = $SnmpResults | Where-Object { $_.Responded }
+
+# Ismert routerek/switchek betoltese (ha vannak) - hogy megkulonboztessuk az UJ, meg
+# nem dokumentalt SNMP-eszkozoket a mar ismertektol.
+$KnownRouterIps = @()
+$KnownSwitchIps = @()
+if (Test-Path $RoutersListPath) {
+    try {
+        $rdata = Get-Content -Path $RoutersListPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+        $KnownRouterIps = $rdata.routers | Where-Object { $_.ip } | Select-Object -ExpandProperty ip
+    } catch { }
+}
+if (Test-Path $SwitchesListPath) {
+    try {
+        $sdata = Get-Content -Path $SwitchesListPath -Raw -Encoding UTF8 | ConvertFrom-Json -ErrorAction Stop
+        $KnownSwitchIps = $sdata.switches | Where-Object { $_.ip } | Select-Object -ExpandProperty ip
+    } catch { }
+}
+
+if ($SnmpHits.Count -eq 0) {
+    Write-Log "Nincs SNMP-valasz egyik vizsgalt eszkoztol sem (ez normalis, ha nincs managed switch/router, vagy az SNMP le van tiltva - ami biztonsagi szempontbol egyebkent ajanlott is)."
+} else {
+    foreach ($hit in $SnmpHits) {
+        $knownTag = ""
+        if ($KnownRouterIps -contains $hit.IP) { $knownTag = " [MAR ISMERT - Routers.json]" }
+        elseif ($KnownSwitchIps -contains $hit.IP) { $knownTag = " [MAR ISMERT - Switchs.json]" }
+        else { $knownTag = " [UJ - erdemes felvenni a Routers.json vagy Switchs.json fajlba]" }
+        Write-Log "  SNMP VALASZ (valoszinu switch/router): $($hit.IP)$knownTag" "Green"
+        if ($hit.SysDescr) { Write-Log "    sysDescr: $($hit.SysDescr)" }
+        if ($hit.SysName)  { Write-Log "    sysName : $($hit.SysName)" }
+    }
+    Write-Log "SNMP-re valaszolo eszkozok szama: $($SnmpHits.Count) - ezek valoszinuleg managed switchek/routerek, amik eddig 'nema' eszkozkent latszottak." "Cyan"
 }
 
 # ==================== 7. PATHPING / TRACEROUTE + GATEWAY/WAN TESZT ====================
@@ -900,10 +1194,14 @@ Write-Log "Vizsgalt alhalok: $($AllSubnets -join ', ')"
 Write-Log "Osszes tesztelt IP: $($AllTested.Count)"
 Write-Log "Elo hostok szama: $($AliveHosts.Count)"
 Write-Log "Lassu valaszu hostok: $($SlowHosts.Count)"
-Write-Log "Nema (csak ARP-ban latszo) hostok: $($ArpOnlyHosts.Count)"
+Write-Log "Nema (csak ARP-ban latszo, valodi) hostok: $($ArpOnlyHosts.Count)"
+Write-Log "Kiszurt protokollszintu (broadcast/multicast) hamis talalat: $FilteredNoiseCount"
 Write-Log "Gyanus (miner port nyitva) hostok: $($SuspiciousMinerHosts.Count)"
 Write-Log "Gyanus helyi mining pool kapcsolatok: $($MiningHits.Count)"
 Write-Log "Ismert/legitim kulso szolgaltatas kapcsolatok (TeamViewer, OneDrive, stb.): $($KnownServiceHits.Count)"
+Write-Log "Felismert okoseszkozok/TV-k/halozati eszkozok (nev alapjan): $($SmartDeviceHits.Count)"
+Write-Log "Felismert eszkozok MAC-OUI (gyarto) alapjan: $($MacVendorHits.Count)"
+Write-Log "SNMP-re valaszolo (valoszinu managed switch/router) eszkozok: $($SnmpHits.Count)"
 Write-Log ""
 Write-Log "Elo IP-k:"
 $AliveHosts | Sort-Object | ForEach-Object { Write-Log "  $_" }
@@ -916,6 +1214,13 @@ $SlowHosts | Sort-Object | ForEach-Object { Write-Log "  $_" "Magenta" }
 Write-Log ""
 Write-Log "Gyanus IP-k (nyitott miner/stratum port):"
 $SuspiciousMinerHosts | Sort-Object | ForEach-Object { Write-Log "  $_" "Red" }
+Write-Log ""
+Write-Log "Felismert eszkoztipusok (TV/okoseszkoz/halozati eszkoz, nev alapjan):"
+if ($SmartDeviceHits.Count -eq 0) {
+    Write-Log "  (nincs ilyen talalat)"
+} else {
+    $SmartDeviceHits | ForEach-Object { Write-Log "  $_" "Green" }
+}
 Write-Log ""
 Write-Log "MEGJEGYZES A SWITCH-EKROL:"
 Write-Log "A managed/unmanaged switch-ek tobbsege NEM valaszol pingre, NEM jelenik meg ARP-ban (ha nincs management IP),"
@@ -942,14 +1247,19 @@ Write-Host ""
 Write-Host "Kesz! A teljes, maximalis log itt van: $OutFile" -ForegroundColor Green
 Write-Host "Kuldd el ezt a fajlt, es egyutt kiertekeljuk." -ForegroundColor Green
 Write-Host ""
-$openAnswer = Read-Host "Megnyissam a LOG mappat? (I/n - alapertelmezett: Igen, csak nyomj Entert)"
+$openAnswer = Read-Host "Megnyissam a logot bongeszoben, olvashato formaban? (I/n - alapertelmezett: Igen, csak nyomj Entert)"
 if ([string]::IsNullOrWhiteSpace($openAnswer) -or $openAnswer -match "^(i|ig|igen|y|yes)$") {
-    try {
-        Invoke-Item $OutDir
-    } catch {
-        Write-Host "Nem sikerult megnyitni a mappat: $_" -ForegroundColor Red
-        Write-Host "Kezzel itt talalod: $OutDir" -ForegroundColor Yellow
+    $logToIndex = Join-Path $PSScriptRoot "LOGtoINDEX.ps1"
+    if (Test-Path $logToIndex) {
+        try {
+            & $logToIndex -LogFile $OutFile -LogDir $OutDir
+        } catch {
+            Write-Host "LOGtoINDEX.ps1 futtatasa nem sikerult: $_" -ForegroundColor Red
+            Write-Host "Kezzel itt talalod a logot: $OutFile" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "LOGtoINDEX.ps1 nem talalhato a script mellett - nyisd meg kezzel: $OutFile" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "Rendben, a mappa nem nyilik meg. Eleresi ut: $OutDir" -ForegroundColor Yellow
+    Write-Host "Rendben, semmi nem nyilik meg. Eleresi ut: $OutFile" -ForegroundColor Yellow
 }
