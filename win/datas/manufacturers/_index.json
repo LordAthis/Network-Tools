@@ -1,0 +1,78 @@
+{
+  "version": "1.0",
+  "updated": "2026-09-04",
+  "description": "Gyarto/algorithm fajlok indexe. A MinerStatus es MinerSearch ezt olvassa eloszor.",
+  "load_order": [
+    "bitmain_sha256.json",
+    "bitmain_scrypt.json",
+    "bitmain_equihash.json",
+    "bitmain_kaspa.json",
+    "microbt_whatsminer.json",
+    "canaan_avalon.json",
+    "iceriver.json",
+    "goldshell.json",
+    "bitaxe.json"
+  ],
+  "files": {
+    "bitmain_sha256.json": {
+      "manufacturer": "Bitmain",
+      "brand": "Antminer",
+      "algorithms": ["SHA-256"],
+      "series": "S9 - S23",
+      "priority": 1
+    },
+    "bitmain_scrypt.json": {
+      "manufacturer": "Bitmain",
+      "brand": "Antminer",
+      "algorithms": ["Scrypt"],
+      "series": "L3 - L9",
+      "coins": ["LTC", "DOGE"],
+      "priority": 2
+    },
+    "bitmain_equihash.json": {
+      "manufacturer": "Bitmain",
+      "brand": "Antminer",
+      "algorithms": ["Equihash"],
+      "series": "Z9 - Z15",
+      "coins": ["ZEC"],
+      "priority": 3
+    },
+    "bitmain_kaspa.json": {
+      "manufacturer": "Bitmain",
+      "brand": "Antminer",
+      "algorithms": ["kHeavyHash"],
+      "series": "KS",
+      "coins": ["KAS"],
+      "priority": 4
+    },
+    "microbt_whatsminer.json": {
+      "manufacturer": "MicroBT",
+      "brand": "Whatsminer",
+      "algorithms": ["SHA-256"],
+      "priority": 5
+    },
+    "canaan_avalon.json": {
+      "manufacturer": "Canaan",
+      "brand": "Avalon",
+      "algorithms": ["SHA-256"],
+      "priority": 6
+    },
+    "iceriver.json": {
+      "manufacturer": "IceRiver",
+      "algorithms": ["kHeavyHash"],
+      "coins": ["KAS"],
+      "priority": 7
+    },
+    "goldshell.json": {
+      "manufacturer": "Goldshell",
+      "algorithms": ["kHeavyHash", "Scrypt"],
+      "priority": 8
+    },
+    "bitaxe.json": {
+      "manufacturer": "Open Source",
+      "brand": "Bitaxe / NerdAxe",
+      "algorithms": ["SHA-256"],
+      "priority": 9
+    }
+  }
+}
