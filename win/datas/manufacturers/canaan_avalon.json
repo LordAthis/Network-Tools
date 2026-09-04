@@ -1,0 +1,38 @@
+{
+  "id": "canaan_avalon",
+  "manufacturer": "Canaan",
+  "brand": "Avalon",
+  "algorithm": "SHA-256",
+  "coins": ["BTC"],
+  "updated": "2026-09-04",
+  "ports": {
+    "web_ui": [80],
+    "api": [4028],
+    "ssh": 22
+  },
+  "api_type": "cgminer-compatible JSON over TCP",
+  "basic_commands": [
+    {"cmd": "version", "payload": "{\"command\":\"version\"}"},
+    {"cmd": "summary", "payload": "{\"command\":\"summary\"}"},
+    {"cmd": "pools", "payload": "{\"command\":\"pools\"}"}
+  ],
+  "extended_commands": [
+    {"cmd": "estats", "payload": "{\"command\":\"estats\"}", "desc": "Legfontosabb diagnostikai log"},
+    {"cmd": "stats", "payload": "{\"command\":\"stats\"}"},
+    {"cmd": "devs", "payload": "{\"command\":\"devs\"}"},
+    {"cmd": "edevs", "payload": "{\"command\":\"edevs\"}"}
+  ],
+  "ssh": {"port": 22},
+  "models": [
+    {"name": "A16XP", "status": "current"},
+    {"name": "A16", "status": "current"},
+    {"name": "A1566HA Hydro", "status": "current"},
+    {"name": "Nano 3 / Nano 3S", "status": "current"},
+    {"name": "Mini 3", "status": "current"},
+    {"name": "A1366 / A1246", "status": "legacy"}
+  ],
+  "log_retrieval": [
+    "API estats (ezt keri a support is)",
+    "Web UI"
+  ]
+}
