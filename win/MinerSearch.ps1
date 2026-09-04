@@ -1,194 +1,201 @@
 # ============================================================
-#  Miner-Search.ps1  -  Miner kereso / elemzo vaz
-#  Hasznalja: datas/minerpoollist.json, miner_pools.json,
-#             miner_manufacturers.json + LOG mappa legfrissebb fajljai
+#  MinerSearch.ps1
+#  Miner felfedezes + LOG iras
+#  Hasznalja: datas/minerpoollist.json, datas/miner_pools.json,
+#             datas/manufacturers/*, datas/common/*
 # ============================================================
 
 $ErrorActionPreference = "Continue"
-$Host.UI.RawUI.WindowTitle = "Miner-Search"
+$Host.UI.RawUI.WindowTitle = "MinerSearch"
 
 # --- Utak ---
 $ScriptRoot = $PSScriptRoot
-if (-not $ScriptRoot) { $ScriptRoot = Get-Location }
+if (-not $ScriptRoot) { $ScriptRoot = (Get-Location).Path }
+
 $DataDir    = Join-Path $ScriptRoot "datas"
 $LogDir     = Join-Path $ScriptRoot "LOG"
+$ManufDir   = Join-Path $DataDir "manufacturers"
+$CommonDir  = Join-Path $DataDir "common"
 
-# JSON fajlok
-$PoolListSimple = Join-Path $DataDir "minerpoollist.json"       # regi kompatibilis (string tomb)
-$PoolListFull   = Join-Path $DataDir "miner_pools.json"
-$ManufList      = Join-Path $DataDir "miner_manufacturers.json"
+# LOG mappa biztositasa
+if (-not (Test-Path $LogDir)) {
+    New-Item -ItemType Directory -Path $LogDir -Force | Out-Null
+}
 
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "  MINER-SEARCH v0.1 (vaz)" -ForegroundColor Cyan
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host ""
+$timestamp  = Get-Date -Format "yyyyMMdd_HHmmss"
+$LogFile    = Join-Path $LogDir "MinerSearch_$timestamp.txt"
 
-# --- 1. JSON-ok betoltese ---
+function Write-Log {
+    param([string]$Message, [string]$Color = "White")
+    $line = "{0} | {1}" -f (Get-Date -Format "HH:mm:ss"), $Message
+    Write-Host $line -ForegroundColor $Color
+    Add-Content -Path $LogFile -Value $line -Encoding UTF8
+}
+
+Write-Log "=== MinerSearch INDUL ===" "Cyan"
+Write-Log "Gep: $env:COMPUTERNAME | Felhasznalo: $env:USERNAME"
+Write-Log "LOG fajl: $LogFile"
+Write-Log ""
+
+# --- JSON betoltes seged ---
 function Load-JsonFile {
     param([string]$Path, [string]$Name)
     if (-not (Test-Path $Path)) {
-        Write-Host "  [!] HIANYZIK: $Name -> $Path" -ForegroundColor Red
+        Write-Log "HIANYZIK: $Name -> $Path" "Red"
         return $null
     }
     try {
         $raw = Get-Content -Path $Path -Raw -Encoding UTF8
         return $raw | ConvertFrom-Json
     } catch {
-        Write-Host "  [!] JSON hiba ($Name): $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log "JSON hiba ($Name): $($_.Exception.Message)" "Red"
         return $null
     }
 }
 
-Write-Host "JSON adatok betoltese..." -ForegroundColor Yellow
-$simpleKeywords = Load-JsonFile -Path $PoolListSimple -Name "minerpoollist.json"
-$poolsFull      = Load-JsonFile -Path $PoolListFull   -Name "miner_pools.json"
-$manufacturers  = Load-JsonFile -Path $ManufList      -Name "miner_manufacturers.json"
+# --- 1. Adatok betoltese ---
+Write-Log "=== 1. ADATOK BETOLTESE ===" "Yellow"
 
-if ($simpleKeywords) {
-    Write-Host "  minerpoollist.json : $($simpleKeywords.Count) kulcsszo" -ForegroundColor Green
-}
-if ($poolsFull) {
-    Write-Host "  miner_pools.json   : betoltve (ver $($poolsFull.version))" -ForegroundColor Green
-}
-if ($manufacturers) {
-    Write-Host "  miner_manufacturers.json : betoltve (ver $($manufacturers.version))" -ForegroundColor Green
-    if ($manufacturers.mac_oui_note) {
-        Write-Host ""
-        Write-Host "  MAC OUI jegyzet:" -ForegroundColor DarkCyan
-        Write-Host "  $($manufacturers.mac_oui_note)" -ForegroundColor DarkGray
+$simpleKeywords = Load-JsonFile -Path (Join-Path $DataDir "minerpoollist.json") -Name "minerpoollist.json"
+$poolsFull      = Load-JsonFile -Path (Join-Path $DataDir "miner_pools.json") -Name "miner_pools.json"
+$portsCommon    = Load-JsonFile -Path (Join-Path $CommonDir "ports.json") -Name "ports.json"
+$apiProbes      = Load-JsonFile -Path (Join-Path $CommonDir "api_probes.json") -Name "api_probes.json"
+$manufIndex     = Load-JsonFile -Path (Join-Path $ManufDir "_index.json") -Name "_index.json"
+
+if ($simpleKeywords) { Write-Log "minerpoollist.json : $($simpleKeywords.Count) kulcsszo" "Green" }
+if ($poolsFull)      { Write-Log "miner_pools.json   : ver $($poolsFull.version)" "Green" }
+if ($portsCommon)    { Write-Log "ports.json         : betoltve" "Green" }
+if ($apiProbes)      { Write-Log "api_probes.json    : betoltve" "Green" }
+if ($manufIndex)     { Write-Log "manufacturers/_index.json : $($manufIndex.load_order.Count) fajl" "Green" }
+
+# Gyarto fajlok betoltese az index szerint
+$manufacturers = @()
+if ($manufIndex -and $manufIndex.load_order) {
+    foreach ($fname in $manufIndex.load_order) {
+        $fpath = Join-Path $ManufDir $fname
+        $obj = Load-JsonFile -Path $fpath -Name $fname
+        if ($obj) {
+            $manufacturers += $obj
+            Write-Log "  + $fname" "DarkGray"
+        }
     }
 }
-Write-Host ""
+Write-Log "Betoltott gyarto profilok: $($manufacturers.Count)" "Green"
+Write-Log ""
 
-# --- 2. LOG mappa - legfrissebb fajlok keresese ---
-function Get-LatestLogFiles {
-    param([string]$Dir)
+# --- 2. Korabbi LOG-ok keresese (opcionalis bemenet) ---
+Write-Log "=== 2. KORABBI LOG FAJLOK ===" "Yellow"
 
-    if (-not (Test-Path $Dir)) {
-        Write-Host "  [!] LOG mappa nem talalhato: $Dir" -ForegroundColor Red
-        return @()
-    }
-
-    $today = Get-Date -Format "yyyyMMdd"
-    $todayAlt = Get-Date -Format "yyyy-MM-dd"
-
-    # Minden .txt a LOG-ban
-    $allLogs = Get-ChildItem -Path $Dir -Filter "*.txt" -File -ErrorAction SilentlyContinue |
+$today = Get-Date -Format "yyyyMMdd"
+$allLogs = @()
+if (Test-Path $LogDir) {
+    $allLogs = Get-ChildItem -Path $LogDir -Filter "*.txt" -File -ErrorAction SilentlyContinue |
                Sort-Object LastWriteTime -Descending
-
-    if (-not $allLogs) {
-        Write-Host "  [!] Nincs .txt fajl a LOG mappaban." -ForegroundColor Red
-        return @()
-    }
-
-    # Mai fajlok (nevben vagy LastWriteTime alapjan)
-    $todayLogs = $allLogs | Where-Object {
-        $_.Name -match $today -or
-        $_.Name -match $todayAlt -or
-        $_.LastWriteTime.Date -eq (Get-Date).Date
-    }
-
-    if ($todayLogs) {
-        Write-Host "  Mai LOG fajlok talalva: $($todayLogs.Count) db" -ForegroundColor Green
-        # Legutolso (legfrissebb) mai
-        $latestToday = $todayLogs | Select-Object -First 1
-        Write-Host "  Legfrissebb mai: $($latestToday.Name)" -ForegroundColor Green
-        return @($latestToday)
-    }
-
-    # Nincs mai -> kerdezzunk ra
-    Write-Host "  Nincs mai (mai datumu) LOG fajl." -ForegroundColor Yellow
-    Write-Host "  Legutobbi elerheto fajlok:" -ForegroundColor Yellow
-    $allLogs | Select-Object -First 5 | ForEach-Object {
-        Write-Host ("    {0}  ({1})" -f $_.Name, $_.LastWriteTime.ToString("yyyy-MM-dd HH:mm")) -ForegroundColor DarkGray
-    }
-    Write-Host ""
-    $answer = Read-Host "  Feldolgozzak a legutolso (nem mai) LOG fajlt is? (I/N)"
-    if ($answer -match '^[IiYy]') {
-        $latest = $allLogs | Select-Object -First 1
-        Write-Host "  Valasztott: $($latest.Name)" -ForegroundColor Cyan
-        return @($latest)
-    }
-
-    Write-Host "  Kihagyva a regi LOG feldolgozasa." -ForegroundColor Yellow
-    return @()
 }
 
-Write-Host "LOG mappa ellenorzese: $LogDir" -ForegroundColor Yellow
-$logFiles = Get-LatestLogFiles -Dir $LogDir
+$todayLogs = $allLogs | Where-Object {
+    $_.Name -match $today -or $_.LastWriteTime.Date -eq (Get-Date).Date
+}
 
-# --- 3. Egyszeru elemzes vaz (kesobb bovitheto) ---
-function Analyze-LogForMiners {
-    param([System.IO.FileInfo]$LogFile, $Keywords, $Ports)
+$selectedLogs = @()
+if ($todayLogs) {
+    Write-Log "Mai LOG fajlok: $($todayLogs.Count) db" "Green"
+    $selectedLogs = @($todayLogs | Select-Object -First 3)
+    foreach ($l in $selectedLogs) { Write-Log "  -> $($l.Name)" "DarkGray" }
+} else {
+    Write-Log "Nincs mai LOG fajl." "Yellow"
+    if ($allLogs.Count -gt 0) {
+        Write-Log "Legutobbi elerheto fajlok:" "Yellow"
+        $allLogs | Select-Object -First 5 | ForEach-Object {
+            Write-Log ("  {0}  ({1})" -f $_.Name, $_.LastWriteTime.ToString("yyyy-MM-dd HH:mm")) "DarkGray"
+        }
+        $answer = Read-Host "Feldolgozzak a legutolso (nem mai) LOG fajlt is? (I/N)"
+        if ($answer -match '^[IiYy]') {
+            $selectedLogs = @($allLogs | Select-Object -First 1)
+            Write-Log "Valasztott: $($selectedLogs[0].Name)" "Cyan"
+        } else {
+            Write-Log "Regi LOG kihagyva." "Yellow"
+        }
+    } else {
+        Write-Log "Nincs egyaltalan LOG fajl." "Yellow"
+    }
+}
+Write-Log ""
 
-    Write-Host ""
-    Write-Host "------------------------------------------------------------" -ForegroundColor Cyan
-    Write-Host "  Elemzes: $($LogFile.Name)" -ForegroundColor Cyan
-    Write-Host "------------------------------------------------------------" -ForegroundColor Cyan
+# --- 3. Kulcsszo + port kereses a kivalasztott LOG-okban ---
+Write-Log "=== 3. LOG ELEMZES (pool kulcsszavak + portok) ===" "Yellow"
 
-    $content = Get-Content -Path $LogFile.FullName -Raw -ErrorAction SilentlyContinue
+$foundKeywords = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$foundPorts    = [System.Collections.Generic.HashSet[int]]::new()
+$foundIps      = [System.Collections.Generic.HashSet[string]]::new()
+
+$checkPorts = @(22, 80, 443, 4028, 4433, 50051, 8080, 9999, 3333, 3357, 1010, 8888)
+if ($portsCommon -and $portsCommon.priority_scan) {
+    $checkPorts = $portsCommon.priority_scan + $portsCommon.stratum_common | Select-Object -Unique
+}
+
+foreach ($log in $selectedLogs) {
+    Write-Log "Elemzes: $($log.Name)" "Cyan"
+    $content = Get-Content -Path $log.FullName -Raw -ErrorAction SilentlyContinue
     if (-not $content) {
-        Write-Host "  Ures vagy olvashatatlan fajl." -ForegroundColor Red
-        return
+        Write-Log "  Ures vagy olvashatatlan." "Red"
+        continue
     }
 
-    # Kulcsszavak keresese
-    $foundKeywords = @()
-    if ($Keywords) {
-        foreach ($kw in $Keywords) {
-            if ($content -match [regex]::Escape($kw)) {
-                $foundKeywords += $kw
+    if ($simpleKeywords) {
+        foreach ($kw in $simpleKeywords) {
+            if ($content -match [regex]::Escape([string]$kw)) {
+                [void]$foundKeywords.Add([string]$kw)
             }
         }
     }
 
-    if ($foundKeywords.Count -gt 0) {
-        Write-Host "  Talalt pool/miner kulcsszavak:" -ForegroundColor Green
-        $foundKeywords | Sort-Object -Unique | ForEach-Object { Write-Host "    - $_" -ForegroundColor Green }
-    } else {
-        Write-Host "  Nem talalhato ismert pool kulcsszo a LOG-ban." -ForegroundColor DarkGray
-    }
-
-    # Gyakori stratum portok emlitese a LOG-ban
-    $portHits = @()
-    $checkPorts = @(3333, 443, 4028, 4433, 22, 8080, 9999, 3357, 1010, 8888)
     foreach ($p in $checkPorts) {
-        if ($content -match ":$p\b" -or $content -match "\b$p\b") {
-            $portHits += $p
+        if ($content -match ":$p\b" -or $content -match "\bport\s+$p\b") {
+            [void]$foundPorts.Add([int]$p)
         }
     }
-    if ($portHits.Count -gt 0) {
-        Write-Host "  Emlegetett portok (gyanus/szamat): $($portHits -join ', ')" -ForegroundColor Yellow
-    }
 
-    # TODO: kesobb
-    # - ARP/MAC OUI egyeztetes a manufacturers.mac_oui listaval
-    # - 4028-as API probe elo hostokra
-    # - netstat ESTABLISHED -> pool domain egyeztetes
-    # - SSH banner check ha 22 nyitva
+    # Egyszeru IP gyujtes (192.168.x.x es hasonlok)
+    $ipMatches = [regex]::Matches($content, '\b(?:192\.168|10\.|172\.(?:1[6-9]|2[0-9]|3[01]))\.\d{1,3}\.\d{1,3}\b')
+    foreach ($m in $ipMatches) {
+        [void]$foundIps.Add($m.Value)
+    }
 }
 
-if ($logFiles.Count -gt 0) {
-    foreach ($lf in $logFiles) {
-        Analyze-LogForMiners -LogFile $lf -Keywords $simpleKeywords -Ports $null
-    }
+if ($foundKeywords.Count -gt 0) {
+    Write-Log "Talalt pool/miner kulcsszavak:" "Green"
+    $foundKeywords | Sort-Object | ForEach-Object { Write-Log "  - $_" "Green" }
 } else {
-    Write-Host ""
-    Write-Host "  Nincs feldolgozando LOG fajl. A script kilep a LOG reszbol." -ForegroundColor Yellow
+    Write-Log "Nem talalhato ismert pool kulcsszo a vizsgalt LOG-okban." "DarkGray"
 }
 
-# --- 4. Helyi elokeszites a hálózati scanhez (vaz) ---
+if ($foundPorts.Count -gt 0) {
+    Write-Log "Emlegetett relevans portok: $($foundPorts -join ', ')" "Yellow"
+}
+
+if ($foundIps.Count -gt 0) {
+    Write-Log "LOG-bol kinyert belso IP-k ($($foundIps.Count) db):" "Yellow"
+    $foundIps | Sort-Object | ForEach-Object { Write-Log "  $_" "DarkGray" }
+}
+Write-Log ""
+
+# --- 4. Elokeszites a kovetkezo lepeshez (MinerStatus) ---
+Write-Log "=== 4. OSSZEFOGLALO / KOVETKEZO LEPES ===" "Yellow"
+Write-Log "Betoltott gyarto profilok : $($manufacturers.Count)"
+Write-Log "Talalt kulcsszavak        : $($foundKeywords.Count)"
+Write-Log "Talalt portok             : $($foundPorts.Count)"
+Write-Log "Kinyert IP-k              : $($foundIps.Count)"
+Write-Log ""
+Write-Log "A reszletes lekerdezest a MinerStatus.ps1 vegzi majd."
+Write-Log "  - Alap probe-ok: version / summary / pools (4028)"
+Write-Log "  - Web UI check (80/8080)"
+Write-Log "  - SSH banner (22)"
+Write-Log "  - Gyarto-specifikus bovitett parancsok a manufacturers/*.json-bol"
+Write-Log ""
+Write-Log "=== MinerSearch VEGE ===" "Cyan"
+Write-Log "LOG mentve: $LogFile" "Green"
+
 Write-Host ""
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "  Kovetkezo lepesek (meg nem implementalt - vaz):" -ForegroundColor Cyan
-Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "  1. Elo hostok listaja (ping / ARP / korabbi NetworkDiag LOG)"
-Write-Host "  2. Prioritas portscan: 22, 80, 4028, 4433, 8080, 50051..."
-Write-Host "  3. 4028-as JSON probe (version/summary/pools)"
-Write-Host "  4. MAC OUI egyeztetes"
-Write-Host "  5. Kimenő kapcsolatok egyeztetese a pool keywords-szel"
-Write-Host "  6. Eredmeny mentese a LOG mappaba"
-Write-Host ""
-Write-Host "Kesz (vaz futas vege)." -ForegroundColor Green
-Write-Host "Nyomj Enter-t a kilepeshez..."
+Write-Host "Nyomj Enter-t a kilepeshez..." -ForegroundColor DarkGray
 Read-Host | Out-Null
