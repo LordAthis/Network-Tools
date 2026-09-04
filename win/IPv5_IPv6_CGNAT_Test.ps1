@@ -24,20 +24,20 @@ function Test-IPv6Status {
         }
 
     if ($global) {
-        Write-Host "✓ Van globalis IPv6 cim:" -ForegroundColor Green
+        Write-Host "OK Van globalis IPv6 cim:" -ForegroundColor Green
         $global | ForEach-Object {
             Write-Host ("  {0,-25} {1}/{2}" -f $_.InterfaceAlias, $_.IPAddress, $_.PrefixLength)
         }
     } else {
-        Write-Host "✗ Nincs globalis IPv6 cim" -ForegroundColor Red
+        Write-Host "X Nincs globalis IPv6 cim" -ForegroundColor Red
     }
 
     # Gyors elerhetoseg
     $targets = @("2001:4860:4860::8888", "2606:4700:4700::1111")
     foreach ($t in $targets) {
         $ok = Test-Connection -ComputerName $t -Count 1 -Quiet -ErrorAction SilentlyContinue
-        if ($ok) { Write-Host "✓ $t elerheto" -ForegroundColor Green }
-        else     { Write-Host "✗ $t nem elerheto" -ForegroundColor Red }
+        if ($ok) { Write-Host "OK $t elerheto" -ForegroundColor Green }
+        else     { Write-Host "X $t nem elerheto" -ForegroundColor Red }
     }
 }
 
@@ -64,3 +64,30 @@ function Test-CGNAT {
     $isPrivateOrCGNAT = $false
 
     foreach ($range in $cgnatRanges) {
+        if ($ip -ge $range.Start -and $ip -le $range.End) {
+            $isPrivateOrCGNAT = $true
+            break
+        }
+    }
+
+    if ($isPrivateOrCGNAT) {
+        Write-Host "X A publikus IP privat/CGNAT tartomanyban van - valoszinuleg CGNAT mogott vagy" -ForegroundColor Red
+        Write-Host "  (a router NAT-olt cimet kapott a szolgaltatotol, nem valodi publikus IP-t)." -ForegroundColor Red
+        Write-Host "  Ez azt jelenti: bejovo port-forward kivulrol NEM fog mukodni." -ForegroundColor Yellow
+    } else {
+        Write-Host "OK A publikus IP valodi publikus cimnek tunik (nincs CGNAT jel a szokasos RFC 6598 tartomanyok alapjan)." -ForegroundColor Green
+    }
+}
+
+# ============================================================
+# Futas - eddig csak fuggveny-definiciok voltak, most tenylegesen
+# meghivjuk oket (a fajl korabban itt csonkan vegzodott).
+# ============================================================
+Write-Title "Aktiv halozati adapterek"
+Get-ActiveAdapters | Format-Table -AutoSize
+
+Test-IPv6Status
+Test-CGNAT
+
+Write-Host ""
+Write-Host "Teszt vege." -ForegroundColor Cyan
