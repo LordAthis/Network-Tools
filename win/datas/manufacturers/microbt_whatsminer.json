@@ -1,0 +1,36 @@
+{
+  "id": "microbt_whatsminer",
+  "manufacturer": "MicroBT",
+  "brand": "Whatsminer",
+  "algorithm": "SHA-256",
+  "coins": ["BTC"],
+  "updated": "2026-09-04",
+  "ports": {
+    "web_ui": [80, 443],
+    "api": [4433, 4028],
+    "ssh": 22
+  },
+  "api_type": "Whatsminer API (length-prefixed JSON, preferred port 4433)",
+  "basic_commands": [
+    {"cmd": "get_version", "port": 4433},
+    {"cmd": "get_summary", "port": 4433},
+    {"cmd": "get_pool_info", "port": 4433}
+  ],
+  "extended_commands": [
+    {"cmd": "get_miner_info", "port": 4433},
+    {"cmd": "get_error_code", "port": 4433},
+    {"cmd": "get_psu", "port": 4433}
+  ],
+  "ssh": {
+    "port": 22,
+    "notes": "Ujabb firmware-eken token/salt auth lehet az API-n."
+  },
+  "models": [
+    {"name": "M79S / M79", "status": "current"},
+    {"name": "M73S / M73", "status": "current"},
+    {"name": "M63S / M63", "status": "current"},
+    {"name": "M60S / M60", "status": "current"},
+    {"name": "M50S", "status": "legacy"}
+  ],
+  "log_retrieval": ["Web UI Log", "API get_error_code"]
+}
