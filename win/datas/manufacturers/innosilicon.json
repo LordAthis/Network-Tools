@@ -1,0 +1,35 @@
+{
+  "id": "innosilicon",
+  "manufacturer": "Innosilicon",
+  "brand": "Innosilicon",
+  "algorithms": ["SHA-256", "Scrypt", "Equihash", "other"],
+  "coins": ["BTC", "LTC", "DOGE", "ZEC"],
+  "updated": "2026-09-04",
+  "note": "Kisebb reszesedes, de elofordul farmokban es masodpiacon. Uj modellek elol.",
+  "ports": {
+    "web_ui": [80, 8080],
+    "api": [4028, 80],
+    "ssh": 22
+  },
+  "api_type": "gyakran cgminer-kompatibilis vagy sajat web API",
+  "basic_commands": [
+    {"cmd": "version", "payload": "{\"command\":\"version\"}"},
+    {"cmd": "summary", "payload": "{\"command\":\"summary\"}"},
+    {"cmd": "pools", "payload": "{\"command\":\"pools\"}"}
+  ],
+  "extended_commands": [
+    {"cmd": "stats", "payload": "{\"command\":\"stats\"}"},
+    {"cmd": "devs", "payload": "{\"command\":\"devs\"}"}
+  ],
+  "ssh": {
+    "port": 22,
+    "banner_hints": ["dropbear", "busybox"]
+  },
+  "models": [
+    {"name": "A11 / A11 Pro series", "status": "legacy"},
+    {"name": "T3 / T3+ series", "status": "legacy"},
+    {"name": "A10 series", "status": "legacy"},
+    {"name": "egyeb altcoin modellek", "status": "varies"}
+  ],
+  "log_retrieval": ["Web UI Log", "API summary/stats ha 4028 elerheto"]
+}
