@@ -1,0 +1,26 @@
+{
+  "id": "auradine",
+  "manufacturer": "Auradine",
+  "brand": "Teraflux",
+  "algorithms": ["SHA-256"],
+  "coins": ["BTC"],
+  "updated": "2026-09-04",
+  "note": "Viszonylag uj, US-alapu gyarto. Kisebb piaci reszesedes, de ipari erdeklodes.",
+  "ports": {
+    "web_ui": [80, 443, 8080],
+    "api": [4028, 80],
+    "ssh": 22
+  },
+  "api_type": "ellenorizendo (web + lehet cgminer-szeru)",
+  "basic_commands": [
+    {"cmd": "version", "payload": "{\"command\":\"version\"}"},
+    {"cmd": "summary", "payload": "{\"command\":\"summary\"}"},
+    {"cmd": "pools", "payload": "{\"command\":\"pools\"}"}
+  ],
+  "ssh": {"port": 22},
+  "models": [
+    {"name": "Teraflux AT2880", "status": "current"},
+    {"name": "Teraflux AT2860", "status": "current"},
+    {"name": "AH3880", "status": "current"}
+  ]
+}
