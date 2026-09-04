@@ -1,9 +1,18 @@
 # ============================================================
 #  Launcher.ps1  -  Hálózati eszközök indító menü
 #  Bat és PS1 scriptek indítása ugyanabban az ablakban
+#  Futtatási házirend: Process szinten Bypass (semmit nem tilt)
 # ============================================================
 
 $Host.UI.RawUI.WindowTitle = "Halozati Eszkozok - Launcher"
+
+# Futtatasi szint emelese: semmilyen script futtatast ne tiltson ebben a folyamatban
+try {
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force -ErrorAction Stop
+} catch {
+    # Ha nem sikerul, a meghivott PS1-eknel ugyis Bypass-szal inditunk
+}
+
 Clear-Host
 
 $ScriptRoot = $PSScriptRoot
@@ -74,6 +83,20 @@ $Scripts = @(
         File        = "NetworkDiag_MAX_v2.ps1"
         Type        = "ps1"
         Description = "Legalaposabb diagnostika (ASIC miner, nema eszkoz, pool, stb.)"
+    },
+    @{
+        Number      = "10"
+        Name        = "MinerSearch"
+        File        = "MinerSearch.ps1"
+        Type        = "ps1"
+        Description = "Miner felfedezes LOG-okbol (kulcsszo, port, IP lista)"
+    },
+    @{
+        Number      = "11"
+        Name        = "MinerStatus"
+        File        = "MinerStatus.ps1"
+        Type        = "ps1"
+        Description = "Aktiv miner lekerdezes (API / web / SSH probe)"
     }
 )
 
@@ -135,7 +158,7 @@ function Start-Script {
             & cmd.exe /c "`"$fullPath`""
         }
         else {
-            # PowerShell script ugyanabban az ablakban
+            # PowerShell: Bypass atadasa a meghivott scriptnek is (semmit ne tiltson)
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "`"$fullPath`""
         }
     }
@@ -169,7 +192,8 @@ do {
             Start-Sleep -Milliseconds 400
             exit
         }
-        { $_ -match '^[1-9]$' } {
+        { $_ -match '^(1[01]|[1-9])$' } {
+            # 1-9, 10, 11
             $selected = $Scripts | Where-Object { $_.Number -eq $choice }
             if ($selected) {
                 Start-Script -ScriptInfo $selected
