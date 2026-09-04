@@ -1,0 +1,69 @@
+{
+  "version": "1.0",
+  "updated": "2026-09-04",
+  "description": "Alap 'ki vagy te?' probe parancsok - minden miner tipushöz kozos kiindulas",
+  "tcp_json_probes": [
+    {
+      "id": "version",
+      "port": 4028,
+      "payload": "{\"command\":\"version\"}",
+      "desc": "Firmware, HW tipus, API verzio"
+    },
+    {
+      "id": "summary",
+      "port": 4028,
+      "payload": "{\"command\":\"summary\"}",
+      "desc": "Hashrate, accepted/rejected, uptime"
+    },
+    {
+      "id": "pools",
+      "port": 4028,
+      "payload": "{\"command\":\"pools\"}",
+      "desc": "Beallitott poolok es statuszuk"
+    },
+    {
+      "id": "stats",
+      "port": 4028,
+      "payload": "{\"command\":\"stats\"}",
+      "desc": "Reszletes stats (ha tamogatott)"
+    }
+  ],
+  "whatsminer_probes": [
+    {
+      "id": "get_version",
+      "port": 4433,
+      "desc": "Whatsminer version"
+    },
+    {
+      "id": "get_summary",
+      "port": 4433,
+      "desc": "Whatsminer summary"
+    },
+    {
+      "id": "get_pool_info",
+      "port": 4433,
+      "desc": "Whatsminer pools"
+    }
+  ],
+  "http_checks": [
+    {
+      "port": 80,
+      "path": "/",
+      "desc": "Web UI title / server header"
+    },
+    {
+      "port": 8080,
+      "path": "/",
+      "desc": "Alt web UI port"
+    },
+    {
+      "port": 80,
+      "path": "/api/system/info",
+      "desc": "Bitaxe / AxeOS API"
+    }
+  ],
+  "ssh": {
+    "port": 22,
+    "desc": "Banner lekeres (Dropbear/BusyBox = tipikus miner). Nincs login proba."
+  }
+}
