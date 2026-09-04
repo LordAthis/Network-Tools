@@ -1,0 +1,146 @@
+================================================================================
+ASIC MINER GYARTOK ES HELYI HALOZATI LEKERDEZESEK
+Utolso frissites: 2026-09
+Cel: hálózati diagnosztikai scriptek (NetworkDiag, portscan, API probe) táplálása
+================================================================================
+
+MEGJEGYZES:
+- A legtöbb modern ASIC cgminer/bmminer kompatibilis API-t használ TCP 4028-on.
+- Whatsminer újabb firmware-ek gyakran 4433-at használnak.
+- Web UI általában 80 vagy 8080.
+- Alapértelmezett jelszó gyakran root/root, admin/admin, vagy üres – de ezt a script ne próbálja brute-force-olni.
+- Logok lekérése: API-n keresztül (estats, summary, cglog) vagy webes felületen "System Log" / "Miner Log".
+
+--------------------------------------------------------------------------------
+1. BITMAIN (Antminer) - piaci részesedés ~70-75%
+--------------------------------------------------------------------------------
+Tipikus modellek (2025-2026): S21, S21 Pro, S21 XP, S21 XP Hydro, S23, S23 Hydro, S23 Hyd 3U, U3S23H, L9 (Scrypt), KS series (Kaspa)
+
+Web UI portok: 80, 8080
+API port: 4028 (cgminer / bmminer JSON API)
+Egyéb: SSH néha 22-es porton (ha engedélyezve)
+
+Fontos API parancsok (TCP 4028, JSON):
+  {"command":"version"}
+  {"command":"summary"}
+  {"command":"stats"}
+  {"command":"devs"}
+  {"command":"edevs"}
+  {"command":"pools"}
+  {"command":"config"}
+  {"command":"asc"}          # ASIC status
+  {"command":"estats"}       # extended stats (log jellegű)
+
+Példa lekérdezés:
+  echo '{"command":"summary"}' | nc -w 3 <IP> 4028
+
+Log / diagnosztika:
+  - Web UI: System -> Log / Kernel Log / Miner Log
+  - API: estats + summary kombináció
+  - Braiins OS+ esetén gRPC 50051 + legacy 4028
+
+Braiins OS / Braiins OS+ (gyakori custom firmware Antminer-en):
+  - Legacy API: 4028
+  - gRPC: 50051
+  - Web UI: 80 / 443
+
+--------------------------------------------------------------------------------
+2. MICROBT (Whatsminer)
+--------------------------------------------------------------------------------
+Tipikus modellek: M50S, M60, M60S, M63, M63S, M66, M73, M73S, M76, M79, M79S Hydro
+
+Web UI portok: 80, 443
+API port: 
+  - Régebbi: 4028
+  - Újabb (API v3): 4433 (length-prefixed JSON)
+  - Néhány firmware még 4028-at is hallgat
+
+Fontos parancsok (Whatsminer API):
+  - get_version
+  - get_summary
+  - get_miner_info
+  - get_pool_info
+  - get_psu
+  - get_error_code
+
+Megjegyzés: Az API token/salt alapú autentikációt használhat újabb verziónál.
+Fleet toolok (Foreman, Awesome Miner) jól támogatják.
+
+Log:
+  - Web UI: Log / System Log
+  - API-n keresztül error_code és summary
+
+--------------------------------------------------------------------------------
+3. CANAAN (Avalon / AvalonMiner)
+--------------------------------------------------------------------------------
+Tipikus modellek: A1246, A1366, A15, A16, A16XP, A1566HA Hydro, Nano 3 / Nano 3S, Mini 3
+
+Web UI: 80
+API port: 4028 (cgminer kompatibilis, erős támogatás)
+
+Fontos API parancsok:
+  {"command":"version"}
+  {"command":"summary"}
+  {"command":"stats"}
+  {"command":"estats"}       # legfontosabb diagnosztikai log
+  {"command":"pools"}
+  {"command":"devs"}
+  {"command":"edevs"}
+  {"command":"ascset"}       # beállítás (óvatosan)
+
+Példa:
+  echo '{"command":"estats"}' | nc -w 3 <IP> 4028
+
+Log:
+  - A "log" amit a support kér: általában az estats kimenet
+  - Web UI-n is elérhető
+  - Privileged API létezik, de garancia-vesztéssel járhat
+
+--------------------------------------------------------------------------------
+4. BITDEER (SEALMINER)
+--------------------------------------------------------------------------------
+Tipikus modellek: A2, A2 Pro, A3, A3 Pro, A4 Pro/Ultra Hydro
+
+Web UI: 80 / 8080
+API: változó, gyakran cgminer-szerű 4028 vagy saját HTTP API
+
+Ellenőrizendő portok: 80, 8080, 4028
+
+--------------------------------------------------------------------------------
+5. EGYEB / ALCOIN GYARTOK (Kaspa, Aleo, Scrypt stb.)
+--------------------------------------------------------------------------------
+IceRiver (Kaspa, Aleo):
+  - Web UI: 80
+  - API: gyakran 80-as HTTP vagy 4028
+
+Goldshell:
+  - Web UI: 80
+  - API: 80 / saját
+
+Innosilicon:
+  - Web UI: 80
+  - Régebbi modellek 4028
+
+iBeLink, Jasminer, Auradine, Bitaxe/NerdAxe (open-source):
+  - Bitaxe / AxeOS: HTTP API port 80 (/api/system/info stb.)
+  - Nagyon gyakori otthoni/kis farm környezetben
+
+--------------------------------------------------------------------------------
+KOZOS PORT LISTA (scriptekhez)
+--------------------------------------------------------------------------------
+Prioritásos figyelendő portok miner gyanú esetén:
+  80, 443, 8080          - Web UI
+  4028                   - cgminer/bmminer/Avalon/Antminer API (LEGFONTOSABB)
+  4433                   - Whatsminer új API
+  50051                  - Braiins OS gRPC
+  22                     - SSH (ha nyitva van)
+  9999, 3333, 25, 1800   - néha stratum vagy management (ritkább helyi)
+
+Gyanús jelek helyi hálózaton:
+  - 4028 nyitva + JSON válasz "summary"/"version"/"pools" parancsra
+  - Magas állandó sávszélesség kifelé (stratum)
+  - MAC OUI: Bitmain, MicroBT, Canaan ismert prefixek
+
+================================================================================
+VEGE - miner_manufacturers_list.txt
+================================================================================
