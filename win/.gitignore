@@ -7,3 +7,9 @@ win/LOG/
 
 # A datas\ mappa (iplist.json, minerpoollist.json) VISSZASZANDEKOSAN nincs itt -
 # az mehet verziokezelobe, mert csak konfiguracios listakat tartalmaz.
+
+# DiagMailer - kulon repo (https://github.com/LordAthis/DiagMailer), a Launcher.ps1
+# automatikusan letolti elso futaskor. Nem resze ennek a repo-nak, es a config.json
+# / credential.xml erzekeny adatokat (email, SMTP) tartalmazhat - soha ne kerulhet ide.
+DiagMailer/
+win/DiagMailer/
