@@ -1,3 +1,4 @@
+#Requires -Version 3.0
 # Network-Full-Test.ps1
 # Teljes IPv4/IPv6 + CGNAT + adapter diagnostika
 # Vezetekes -> mobil atallassal
