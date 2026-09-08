@@ -1,3 +1,4 @@
+#Requires -Version 3.0
 # ============================================================
 #  LOGtoINDEX.ps1
 #  Ket uzemmod:
@@ -161,9 +162,9 @@ function Build-IpIndex {
                     $ipData[$ip] = [ordered]@{
                         Hostname = $null
                         MAC      = $null
-                        Tags     = [System.Collections.Generic.HashSet[string]]::new()
-                        Sources  = [System.Collections.Generic.HashSet[string]]::new()
-                        Detail   = [System.Collections.Generic.List[string]]::new()
+                        Tags     = (New-Object 'System.Collections.Generic.HashSet[string]')
+                        Sources  = (New-Object 'System.Collections.Generic.HashSet[string]')
+                        Detail   = (New-Object 'System.Collections.Generic.List[string]')
                         LastSeen = $file.LastWriteTime
                     }
                 }
