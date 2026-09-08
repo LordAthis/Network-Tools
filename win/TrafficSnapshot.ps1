@@ -1,3 +1,4 @@
+#Requires -Version 3.0
 # ============================================================
 #  TrafficSnapshot.ps1
 #
@@ -101,7 +102,7 @@ foreach ($line in $rawLines) {
     }
 }
 
-$Log = [System.Collections.Generic.List[string]]::new()
+$Log = (New-Object 'System.Collections.Generic.List[string]')
 $Log.Add("=== TRAFFIC SNAPSHOT (pktmon, $DurationSec mp) ===")
 $Log.Add("Ido: $(Get-Date)")
 $Log.Add("FONTOS: csak az EZEN a gepen atmeno forgalom latszik (lasd fejlec magyarazat).")
