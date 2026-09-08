@@ -1,3 +1,4 @@
+#Requires -Version 3.0
 # ============================================================
 #  MinerStatus.ps1
 #  Aktiv lekerdezes a talalt / ismert IP-ken
@@ -78,7 +79,7 @@ if ($srcChoice -eq "3") {
     return
 }
 
-$targetIps = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+$targetIps = (New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase))
 
 $ipListFiles = @(Get-ChildItem -Path $LogDir -Filter "MinerSearch_IPs_*.txt" -File -ErrorAction SilentlyContinue |
                  Sort-Object LastWriteTime -Descending)
