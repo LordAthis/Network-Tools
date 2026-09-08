@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 3.0
 <#
     NetworkDiag LogAnalyzer v1 (kezdeti valtozat - meg bovitheto)
 
@@ -42,7 +42,7 @@ if (-not (Test-Path $LogDir)) {
 }
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $OutFile = Join-Path $LogDir "NetworkDiag_FOLLOWUP_$Timestamp.txt"
-$Log = [System.Collections.Generic.List[string]]::new()
+$Log = (New-Object 'System.Collections.Generic.List[string]')
 
 function Write-Log {
     param([string]$Message, [string]$Color = "White")
@@ -110,7 +110,7 @@ function Test-IsNoiseAddress {
 
 function Invoke-Parallel {
     param([array]$InputItems, [scriptblock]$ScriptBlock, [int]$Throttle = 64)
-    $results = [System.Collections.Generic.List[object]]::new()
+    $results = (New-Object 'System.Collections.Generic.List[object]')
     if ($InputItems.Count -eq 0) { return $results }
     $pool = [runspacefactory]::CreateRunspacePool(1, [Math]::Max(1, $Throttle))
     $pool.Open()
