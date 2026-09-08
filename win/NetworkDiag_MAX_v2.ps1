@@ -1,4 +1,4 @@
-#Requires -Version 5.2
+#Requires -Version 3.0
 <#
     NetworkDiag MAX v2 - Maximalisan agressziv LAN + mobilnet diagnosztika
     Cel: semmi se maradjon rejtve - ASIC minerek, "nema" switchek, portolt/tiltott
@@ -90,7 +90,7 @@ if (-not (Test-Path $OutDir)) {
 }
 $Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $OutFile = Join-Path $OutDir "NetworkDiag_MAX_$Timestamp.txt"
-$Log = [System.Collections.Generic.List[string]]::new()
+$Log = (New-Object 'System.Collections.Generic.List[string]')
 
 function Write-Log {
     param([string]$Message, [string]$Color = "White")
@@ -198,7 +198,7 @@ function Invoke-Parallel {
         [Parameter(Mandatory)][scriptblock]$ScriptBlock,
         [int]$Throttle = 64
     )
-    $results = [System.Collections.Generic.List[object]]::new()
+    $results = (New-Object 'System.Collections.Generic.List[object]')
     if ($InputItems.Count -eq 0) { return $results }
 
     $pool = [runspacefactory]::CreateRunspacePool(1, [Math]::Max(1,$Throttle))
@@ -589,9 +589,9 @@ Write-Log "Kiszamitott broadcast cimek (ezek automatikusan kizarva a nema-eszkoz
 Write-Log ""
 Write-Log "=== 5. AGGRESSZIV PING-SWEEP (runspace pool, 3 probalkozas/host, throttle=$ThrottleLimit) ===" "Cyan"
 
-$AliveHosts = [System.Collections.Generic.List[string]]::new()
-$SlowHosts  = [System.Collections.Generic.List[string]]::new()
-$AllTested  = [System.Collections.Generic.List[object]]::new()
+$AliveHosts = (New-Object 'System.Collections.Generic.List[string]')
+$SlowHosts  = (New-Object 'System.Collections.Generic.List[string]')
+$AllTested  = (New-Object 'System.Collections.Generic.List[object]')
 
 $PingScriptBlock = {
     param($ip)
@@ -652,7 +652,7 @@ $AliveHosts | Sort-Object | ForEach-Object { Write-Log "  $_" }
 # --- ARP-ban latszo, de pingre NEM valaszolo "nema" eszkozok (tuzfal / ICMP tiltas mogotti miner/switch gyanus)
 Write-Log ""
 Write-Log "=== 5/B. CSAK ARP-BAN LATHATO, PINGRE NEM VALASZOLO (NEMA) ESZKOZOK ===" "Cyan"
-$ArpOnlyHosts = [System.Collections.Generic.List[string]]::new()
+$ArpOnlyHosts = (New-Object 'System.Collections.Generic.List[string]')
 $FilteredNoiseCount = 0
 foreach ($n in $Neighbors4) {
     if ($n.State -in @("Reachable","Stale","Permanent") -and $n.IPAddress -and ($AliveHosts -notcontains $n.IPAddress)) {
@@ -688,7 +688,7 @@ $AllPorts = ($CommonPorts + $MinerPorts) | Select-Object -Unique
 
 # 6/A - gyors, host-szintu metaadatok (hostname, MAC, NetBIOS, okoseszkoz-tipus)
 $HostMeta = @{}
-$SmartDeviceHits = [System.Collections.Generic.List[string]]::new()
+$SmartDeviceHits = (New-Object 'System.Collections.Generic.List[string]')
 foreach ($ip in $InvestigateTargets) {
     Write-Log "--- $ip ---" "Yellow"
     $meta = [ordered]@{ Hostname = $null; MAC = $null; NetBIOS = $null; DeviceType = $null }
@@ -778,7 +778,7 @@ $PortScriptBlock = {
 $PortResults = Invoke-Parallel -InputItems $PortTargets -ScriptBlock $PortScriptBlock -Throttle $PortThrottleLimit
 $PortResultsByIp = $PortResults | Group-Object IP
 
-$SuspiciousMinerHosts = [System.Collections.Generic.List[string]]::new()
+$SuspiciousMinerHosts = (New-Object 'System.Collections.Generic.List[string]')
 
 foreach ($grp in $PortResultsByIp) {
     $ip = $grp.Name
@@ -821,7 +821,7 @@ if (Test-Path $MacOuiListPath) {
     Write-Log "MAC OUI lista nem talalhato ($MacOuiListPath) - ez a felismeres kimarad. Futtasd a Build-OuiList.ps1-et a bovitesehez." "Yellow"
 }
 
-$MacVendorHits = [System.Collections.Generic.List[string]]::new()
+$MacVendorHits = (New-Object 'System.Collections.Generic.List[string]')
 if ($MacOuiData -and $MacOuiData.entries) {
     foreach ($ip in $InvestigateTargets) {
         $mac = $HostMeta[$ip].MAC
@@ -1031,8 +1031,8 @@ try {
 Write-Log ""
 Write-Log "=== 9/B. ISMERT/LEGITIM KULSO SZOLGALTATASOK ES MINING POOL / GYANUS PORT KORRELACIO ===" "Cyan"
 Write-Log "(Elobb az ismert szolgaltatas-listaval vetjuk ossze - pl. TeamViewer, OneDrive - hogy ezek egyertelmuen ne keveredjenek a gyanus talalatok koze.)"
-$MiningHits = [System.Collections.Generic.List[string]]::new()
-$KnownServiceHits = [System.Collections.Generic.List[string]]::new()
+$MiningHits = (New-Object 'System.Collections.Generic.List[string]')
+$KnownServiceHits = (New-Object 'System.Collections.Generic.List[string]')
 $established = $TcpConns | Where-Object { $_.State -eq "Established" -and $_.RemoteAddress -notmatch "^(127\.|0\.0\.0\.0|::)" }
 foreach ($c in $established) {
     $ptrName = $null
