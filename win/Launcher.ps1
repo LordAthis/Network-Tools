@@ -112,6 +112,13 @@ $Scripts = @(
         File        = "TrafficSnapshot.ps1"
         Type        = "ps1"
         Description = "Helyi gepi forgalom pillanatkep (pktmon) - csak ezen a gepen atmeno forgalom"
+    },
+    @{
+        Number      = "14"
+        Name        = "IPv4/IPv6 + CGNAT teszt"
+        File        = "IPv5_IPv6_CGNAT_Test.ps1"
+        Type        = "ps1"
+        Description = "IPv6 elerhetoseg + publikus IP / CGNAT vizsgalat (Start-Transcript logolassal)"
     }
 )
 
@@ -138,6 +145,9 @@ function Show-Menu {
         Write-Host ""
     }
 
+    Write-Host "  [E]  LOG-ok elkuldese a beallitott karbantartoi emailre (DiagMailer)" -ForegroundColor Cyan
+    Write-Host "       Elso hasznalatkor automatikusan letoltodik GitHub-rol, ha meg nincs meg" -ForegroundColor DarkGray
+    Write-Host ""
     Write-Host "  [0]  Kilepes" -ForegroundColor Red
     Write-Host ""
     Write-Host "============================================================" -ForegroundColor Cyan
@@ -195,29 +205,144 @@ function Start-Script {
     Read-Host | Out-Null
 }
 
+# ============================================================
+#  DIAGMAILER - LOG-ok elkuldese emailben
+#  Kulon repo: https://github.com/LordAthis/DiagMailer
+#  A DiagMailer sajat config.json-ja alapertelmezetten "..\LOG"-ot
+#  var logFolder-kent, ezert a DiagMailer mappanak KOZVETLEN
+#  testvermappajanak kell lennie a LOG mappaval - vagyis ide:
+#  $ScriptRoot\DiagMailer\ (nem a repo gyokerebe, nem egy szinttel feljebb).
+# ============================================================
+$DiagMailerRepoUrl = "https://github.com/LordAthis/DiagMailer.git"
+$DiagMailerZipUrl   = "https://github.com/LordAthis/DiagMailer/archive/refs/heads/main.zip"
+$DiagMailerDir      = Join-Path $ScriptRoot "DiagMailer"
+$DiagMailerLauncher = Join-Path $DiagMailerDir "Launcher.ps1"
+
+function Ensure-DiagMailer {
+    if (Test-Path $DiagMailerLauncher) {
+        return $true
+    }
+
+    Write-Host ""
+    Write-Host "  [DiagMailer] Nem talalhato meg - ez az elso hasznalat." -ForegroundColor Yellow
+    Write-Host "  [DiagMailer] Vart hely: $DiagMailerDir" -ForegroundColor DarkGray
+    Write-Host "  [DiagMailer] Forras: $DiagMailerRepoUrl" -ForegroundColor DarkGray
+    Write-Host ""
+
+    # 1. probalkozas: git clone (ha van git a gepen, ez a leggyorsabb es leg-frissitheto)
+    $gitCmd = Get-Command git -ErrorAction SilentlyContinue
+    if ($gitCmd) {
+        Write-Host "  [DiagMailer] git clone inditasa..." -ForegroundColor Cyan
+        try {
+            git clone $DiagMailerRepoUrl $DiagMailerDir 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0 -and (Test-Path $DiagMailerLauncher)) {
+                Write-Host "  [DiagMailer] Sikeres letoltes (git clone)." -ForegroundColor Green
+                return $true
+            }
+        } catch { }
+        Write-Host "  [DiagMailer] git clone sikertelen, probalom ZIP-pel..." -ForegroundColor Yellow
+    }
+
+    # 2. probalkozas: GitHub ZIP letoltese + kicsomagolas (nincs szukseg gitre)
+    try {
+        $tempZip = Join-Path $env:TEMP "DiagMailer_$(Get-Random).zip"
+        $tempExtract = Join-Path $env:TEMP "DiagMailer_extract_$(Get-Random)"
+        Write-Host "  [DiagMailer] Letoltes: $DiagMailerZipUrl" -ForegroundColor Cyan
+        Invoke-WebRequest -Uri $DiagMailerZipUrl -OutFile $tempZip -UseBasicParsing -TimeoutSec 60
+
+        if (Get-Command Expand-Archive -ErrorAction SilentlyContinue) {
+            Expand-Archive -Path $tempZip -DestinationPath $tempExtract -Force
+        } else {
+            # PS3/4 - nincs Expand-Archive, .NET ZIP-el csomagoljuk ki
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($tempZip, $tempExtract)
+        }
+
+        # A GitHub zip egy "DiagMailer-main" nevu almappaba csomagol ki - ennek tartalmat
+        # kell athelyezni a vegleges $DiagMailerDir helyre.
+        $extractedRoot = Get-ChildItem -Path $tempExtract -Directory | Select-Object -First 1
+        if ($extractedRoot) {
+            if (Test-Path $DiagMailerDir) { Remove-Item $DiagMailerDir -Recurse -Force -ErrorAction SilentlyContinue }
+            Move-Item -Path $extractedRoot.FullName -Destination $DiagMailerDir -Force
+        }
+
+        Remove-Item $tempZip -Force -ErrorAction SilentlyContinue
+        Remove-Item $tempExtract -Recurse -Force -ErrorAction SilentlyContinue
+
+        if (Test-Path $DiagMailerLauncher) {
+            Write-Host "  [DiagMailer] Sikeres letoltes (ZIP)." -ForegroundColor Green
+            return $true
+        }
+    } catch {
+        Write-Host "  [DiagMailer] ZIP letoltes sikertelen: $($_.Exception.Message)" -ForegroundColor Red
+    }
+
+    Write-Host "  [DiagMailer] A letoltes nem sikerult. Toltsd le kezzel innen:" -ForegroundColor Red
+    Write-Host "  $DiagMailerRepoUrl" -ForegroundColor Yellow
+    Write-Host "  Cel mappa: $DiagMailerDir" -ForegroundColor Yellow
+    return $false
+}
+
+function Start-DiagMailer {
+    if (-not (Ensure-DiagMailer)) {
+        Write-Host ""
+        Write-Host "  Nyomj Enter-t a menube visszatereshez..." -ForegroundColor Yellow
+        Read-Host | Out-Null
+        return
+    }
+
+    Write-Host ""
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host "  Inditas: DiagMailer (LOG-ok elkuldese)" -ForegroundColor Cyan
+    Write-Host "============================================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    Push-Location $DiagMailerDir
+    try {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File "`"$DiagMailerLauncher`""
+    } catch {
+        Write-Host ""
+        Write-Host "  HIBA a DiagMailer futtatasa kozben:" -ForegroundColor Red
+        Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
+    } finally {
+        Pop-Location
+    }
+
+    Write-Host ""
+    Write-Host "  Nyomj Enter-t a menube visszatereshez..." -ForegroundColor Yellow
+    Read-Host | Out-Null
+}
+
 # Fo ciklus
+Write-Host ""
+Write-Host "  [DiagMailer] Inditaskori ellenorzes..." -ForegroundColor DarkGray
+[void](Ensure-DiagMailer)
+Start-Sleep -Milliseconds 600
+
 do {
     Show-Menu
     $choice = Read-Host "  Valasztas"
+    $choiceUpper = $choice.Trim().ToUpper()
 
-    switch ($choice) {
+    switch ($choiceUpper) {
         "0" {
             Write-Host ""
             Write-Host "  Kilepes..." -ForegroundColor Yellow
             Start-Sleep -Milliseconds 400
             exit
         }
-        { $_ -match '^(1[01]|[1-9])$' } {
-            # 1-9, 10, 11
-            $selected = $Scripts | Where-Object { $_.Number -eq $choice }
-            if ($selected) {
-                Start-Script -ScriptInfo $selected
-            }
+        "E" {
+            Start-DiagMailer
         }
         default {
-            Write-Host ""
-            Write-Host "  Ervenytelen valasztas!" -ForegroundColor Red
-            Start-Sleep -Seconds 1
+            $selected = $Scripts | Where-Object { $_.Number -eq $choiceUpper }
+            if ($selected) {
+                Start-Script -ScriptInfo $selected
+            } else {
+                Write-Host ""
+                Write-Host "  Ervenytelen valasztas!" -ForegroundColor Red
+                Start-Sleep -Seconds 1
+            }
         }
     }
 } while ($true)
