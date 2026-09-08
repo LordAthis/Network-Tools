@@ -1,3 +1,4 @@
+#Requires -Version 3.0
 # ============================================================
 #  Launcher.ps1  -  Halozati eszkozok indito menu
 #  Bat es PS1 scriptek inditasa ugyanabban az ablakban
