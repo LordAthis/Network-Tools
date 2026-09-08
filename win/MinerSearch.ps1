@@ -1,3 +1,4 @@
+#Requires -Version 3.0
 # ============================================================
 #  MinerSearch.ps1
 #  Miner felfedezes a LOG-okbol + sajat LOG iras
@@ -133,9 +134,9 @@ Write-Log ""
 # --- Elemzes ---
 Write-Log "=== ELEMZES ===" "Yellow"
 
-$foundKeywords = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-$foundPorts    = [System.Collections.Generic.HashSet[int]]::new()
-$foundIps      = [System.Collections.Generic.HashSet[string]]::new()
+$foundKeywords = (New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase))
+$foundPorts    = (New-Object 'System.Collections.Generic.HashSet[int]')
+$foundIps      = (New-Object 'System.Collections.Generic.HashSet[string]')
 
 $checkPorts = @(22, 80, 443, 4028, 4433, 50051, 8080, 9999, 3333, 3357, 1010, 8888)
 if ($portsCommon -and $portsCommon.priority_scan) {
