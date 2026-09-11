@@ -1,4 +1,4 @@
-#Requires -Version 3.0
+﻿#Requires -Version 3.0
 # ============================================================
 #  Launcher.ps1  -  Halozati eszkozok indito menu
 #  Bat es PS1 scriptek inditasa ugyanabban az ablakban
@@ -6,6 +6,14 @@
 # ============================================================
 
 $Host.UI.RawUI.WindowTitle = "Halozati Eszkozok - Launcher"
+
+# Konzol UTF-8 kimenet (a fajl mar UTF-8 BOM-mal van mentve, ez itt csak a
+# konzol-ablak sajat kodlapjat allitja at, hogy az ekezetes szoveg - es a
+# lentebbi DiagMailer hibauzenetek - is helyesen jelenjenek meg).
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+    chcp 65001 > $null
+} catch { }
 
 # Futtatasi szint emelese: semmilyen script futtatast ne tiltson ebben a folyamatban
 try {
@@ -274,10 +282,22 @@ function Ensure-DiagMailer {
             return $true
         }
     } catch {
-        Write-Host "  [DiagMailer] ZIP letoltes sikertelen: $($_.Exception.Message)" -ForegroundColor Red
+        # A nyers .NET kivetel-szoveg (pl. "A tavoli nev feloldasa nem sikerult",
+        # tanusitvany-hiba, timeout) tobbnyire ertelmezhetetlenul jelenik meg a
+        # felhasznalonak - ezert itt egy roviden ertelmezett, magyar okot irunk
+        # ki, a teljes technikai reszletet pedig kulon sorba tesszuk.
+        $okStr = "ismeretlen ok"
+        if ($_.Exception.Message -match "timed out|timeout") { $okStr = "tulleptuk az idokeretet (lassú vagy nincs internet-kapcsolat)" }
+        elseif ($_.Exception.Message -match "SSL|certificate|trust") { $okStr = "biztonsagos (SSL) kapcsolat hiba - tuzfal/proxy/vallalati halozat blokkolhatja" }
+        elseif ($_.Exception.Message -match "name resolution|resolve") { $okStr = "nincs internet-eleres vagy a DNS nem mukodik" }
+        elseif ($_.Exception.Message -match "403|404") { $okStr = "a GitHub nem talalta/engedte a fajlt (403/404)" }
+        Write-Host "  [DiagMailer] A letoltes sikertelen - valoszinu ok: $okStr" -ForegroundColor Red
+        Write-Host "  [DiagMailer] Technikai reszlet: $($_.Exception.Message)" -ForegroundColor DarkGray
     }
 
-    Write-Host "  [DiagMailer] A letoltes nem sikerult. Toltsd le kezzel innen:" -ForegroundColor Red
+    Write-Host "  [DiagMailer] A letoltes nem sikerult - ez NEM allitja meg a tobbi eszkozt," -ForegroundColor Yellow
+    Write-Host "  [DiagMailer] csak a LOG-ok emailes kikuldese (E menupont) nem lesz elerheto." -ForegroundColor Yellow
+    Write-Host "  [DiagMailer] Ha kesobb szeretned hasznalni, told le kezzel innen:" -ForegroundColor Yellow
     Write-Host "  $DiagMailerRepoUrl" -ForegroundColor Yellow
     Write-Host "  Cel mappa: $DiagMailerDir" -ForegroundColor Yellow
     return $false
