@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Verzio: v0.2.0 - 2026-09-21 -->
+<resources>
+    <!-- Az app-ikon hattere (az ikon rajza: drawable/ic_launcher_foreground.xml). -->
+    <color name="ic_launcher_background">#FF05070B</color>
+</resources>

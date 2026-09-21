@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Verzio: v0.4.0 - 2026-09-21 -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Webolvasó (beépített böngésző) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Háttérben futás (előtér-szolgáltatás) és értesítések -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Adatmentés a közös Dokumentumok/NetworkTools mappába (túléli az eltávolítást); belső használatú app -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+    <!-- allowBackup=false: a Google automatikus (rejtett, fájlonként nem látható/törölhető) app-mentése ki van kapcsolva;
+         csak látható, törölhető mentés van: Dokumentumok/NetworkTools és a kézi fájlba/e-mailbe mentés. -->
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Háttérben futás: előtér-szolgáltatás állandó (néma) értesítéssel -->
+        <service
+            android:name=".service.BackgroundService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Hálózati segédeszközök háttérben futása (saját használatú app)" />
+        </service>
+
+        <!-- E-mailes küldéshez: az app védett fájljait (cache/share/) csatolhatóvá teszi, engedély nélkül -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+</manifest>

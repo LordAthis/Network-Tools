@@ -1,0 +1,13 @@
+# Verzio: v0.1.0 - 2026-09-21
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+app/build/
+app/release/
+app/libs/

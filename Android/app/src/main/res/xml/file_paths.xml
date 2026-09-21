@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Verzio: v0.1.0 - 2026-09-21 -->
+<paths>
+    <!-- Az e-mailben kuldendo fajlok ideiglenes helye: <cache>/share/ (lasd AppHub.prepareShareFile) -->
+    <cache-path name="share" path="share/" />
+</paths>
