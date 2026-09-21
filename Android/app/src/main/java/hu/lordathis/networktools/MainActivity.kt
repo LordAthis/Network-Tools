@@ -1,4 +1,4 @@
-// Verzio: v0.4.0 - 2026-09-21
+// Verzio: v0.4.1 - 2026-09-21
 package hu.lordathis.networktools
 
 import android.Manifest
@@ -432,7 +432,6 @@ private fun NetworkToolsApp(hub: AppHub) {
                                     onExport = startExport,
                                     onEmailFile = startEmail,
                                     onLogFileDelete = { pendingDeleteLog = it },
-                                    onDriveSignOut = { hub.driveSignOut() },
                                     onEmailSelect = {
                                         emailSelected = it
                                         prefs.emailSelected = it

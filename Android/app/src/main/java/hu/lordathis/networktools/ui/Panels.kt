@@ -1,4 +1,4 @@
-// Verzio: v0.3.0 - 2026-09-21
+// Verzio: v0.4.1 - 2026-09-21
 package hu.lordathis.networktools.ui
 
 import android.graphics.Bitmap
@@ -267,7 +267,6 @@ internal fun AboutStripedPanel(modifier: Modifier, versionName: String, dataFold
                     "Visszajelzések a Kezdőlapon (háttérfeladatok eredményei - fejlesztés alatt)",
                     "Webolvasó (egyszerűsített, beépített böngésző)",
                     "Napló, mentések, e-mailes küldés",
-                    "Napló automatikus mentése Google Drive-ra",
                     "Titkosítás (kulcs), adatmentés",
                     "Háttérben futás, értesítési hangok",
                 ).forEach { Text("•  $it", color = TextMain, fontSize = 11.sp) }

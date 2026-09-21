@@ -1,4 +1,4 @@
-// Verzio: v0.4.0 - 2026-09-21
+// Verzio: v0.4.1 - 2026-09-21
 package hu.lordathis.networktools.ui
 
 import androidx.compose.foundation.border
@@ -82,7 +82,6 @@ internal data class SettingsActions(
     val onExport: (ExportKind) -> Unit,
     val onEmailFile: (ExportKind) -> Unit,
     val onLogFileDelete: (String) -> Unit,
-    val onDriveSignOut: () -> Unit,
     val onEmailSelect: (String) -> Unit,
     val onEmailInputChange: (String) -> Unit,
     val onEmailAdd: () -> Unit,
@@ -271,7 +270,7 @@ internal fun SettingsStripedPanel(modifier: Modifier, ui: SettingsUiState, act: 
                 }
                 Text(
                     "A NAPLÓ MENTÉSE a rendszer fájlválasztóját nyitja: ott bármelyik helyet kiválaszthatod, akár a Google " +
-                        "Drive-ot is (a választott mappába kerül, ott látod és törölheted).",
+                        "felhő-mappát is (a választott mappába kerül, ott látod és törölheted).",
                     color = TextDim,
                     fontSize = 9.sp,
                     modifier = Modifier.padding(top = 6.dp)
