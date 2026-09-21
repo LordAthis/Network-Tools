@@ -1,0 +1,32 @@
+{
+  "id": "bitdeer_sealminer",
+  "manufacturer": "Bitdeer",
+  "brand": "SEALMINER",
+  "algorithm": "SHA-256",
+  "coins": ["BTC"],
+  "updated": "2026-09-21",
+  "version": "1.0.0",
+  "restored_from": "miner_manufacturers.json / miner_manufacturers_list.txt (torolve: 2026-09-04, commit 430bec3 es 2ce361b) - az uj manufacturers/ mappara valo atszervezeskor kimaradt",
+  "ports": {
+    "web_ui": [80, 8080],
+    "api": [4028, 80],
+    "ssh": 22
+  },
+  "api_type": "valtozo: gyakran cgminer-szeru JSON over TCP (4028), vagy sajat HTTP API (80) - firmware-fuggo, meg nem ellenorzott",
+  "basic_commands": [
+    {"cmd": "version", "payload": "{\"command\":\"version\"}"},
+    {"cmd": "summary", "payload": "{\"command\":\"summary\"}"},
+    {"cmd": "pools", "payload": "{\"command\":\"pools\"}"}
+  ],
+  "extended_commands": [
+    {"cmd": "stats", "payload": "{\"command\":\"stats\"}"},
+    {"cmd": "devs", "payload": "{\"command\":\"devs\"}"}
+  ],
+  "ssh": {"port": 22},
+  "models": [
+    {"name": "A4 Pro / Ultra Hydro", "status": "current"},
+    {"name": "A3 / A3 Pro", "status": "current"},
+    {"name": "A2 / A2 Pro", "status": "legacy"}
+  ],
+  "notes": "Az eredeti listaban is csak 'ellenorizendo portok: 80, 8080, 4028' szerepelt - az API-tipus firmware-fuggo. Elso valos eszkoz talalatakor a basic/extended parancsokat es a portokat ellenorizni kell, es ezt a fajlt pontositani."
+}

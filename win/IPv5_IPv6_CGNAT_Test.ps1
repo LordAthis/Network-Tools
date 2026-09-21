@@ -1,6 +1,17 @@
 #Requires -Version 3.0
+# Verzio: v1.1.0 - 2026-09-21
 # Network-Full-Test.ps1
 # HTML valaszbol kibanyaszos halozati diagnosztika egyedi logolassal
+#
+# Alapertelmezett futas: egyetlen teszt az AKTUALIS kapcsolaton (valtozatlan).
+# -Ketfazisu: visszaallitja az eredeti (2026-08-24, 14d1b7f) menetet - eloszor a
+#   vezetekes kapcsolat tesztje, majd kabel-kihuzas + mobil stick csatlakoztatas
+#   utan a mobil kapcsolat tesztje, a vegen osszehasonlitasi tippekkel.
+#   Pelda: .\IPv5_IPv6_CGNAT_Test.ps1 -Ketfazisu
+
+param(
+    [switch]$Ketfazisu
+)
 
 $logDir = Join-Path $PSScriptRoot "LOG"
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out-Null }
@@ -23,6 +34,17 @@ function Get-ActiveAdapters {
         Select-Object Name, InterfaceDescription, LinkSpeed, MacAddress
 }
 
+# Visszaallitva (eredetileg: 14d1b7f, 2026-08-24; a 5212a7a commit-ban esett ki)
+function Show-AdapterInfo {
+    Write-Host AKTIV_HALOZATI_ADAPTEREK -ForegroundColor Yellow
+    $adapters = Get-ActiveAdapters
+    if ($adapters) {
+        $adapters | Format-Table -AutoSize
+    } else {
+        Write-Host NINCS_AKTIV_ADAPTER -ForegroundColor Red
+    }
+}
+
 function Test-IPv6Status {
     Write-Host IPV6_ALLAPOT -ForegroundColor Yellow
     
@@ -39,7 +61,7 @@ function Test-IPv6Status {
             Write-Host $_.InterfaceAlias $_.IPAddress
         }
     } else {
-        Write-Host NICNS_GLOBALIS_IPV6_CIM -ForegroundColor Red
+        Write-Host NINCS_GLOBALIS_IPV6_CIM -ForegroundColor Red
     }
 
     $targets = @('2001:4860:4860::8888', '2606:4700:4700::1111')
@@ -107,16 +129,61 @@ function Test-CGNAT {
     } catch {
         Write-Host HIBA_Az_IP_konvertalasa_soran -ForegroundColor Red
     }
+
+    # Visszaallitva (eredetileg: 14d1b7f): alapertelmezett gateway kiirasa
+    $gateway = (Get-NetRoute -DestinationPrefix "0.0.0.0/0" -ErrorAction SilentlyContinue |
+                Select-Object -First 1).NextHop
+    if ($gateway) {
+        Write-Host Alapertelmezett_gateway_$gateway
+    }
 }
 
 # --- FUTTATAS ---
 Write-Title TESZT_INDITASA
 
-Write-Host Aktiv_adapterek_keresese... -ForegroundColor Yellow
-Get-ActiveAdapters | Format-Table -AutoSize
+if ($Ketfazisu) {
+    # ---------- 1. FAZIS: VEZETEKES ----------
+    Write-Title "1. FAZIS - VEZETEKES KAPCSOLAT"
+    Write-Host "Feltetelezes: most VEZETEKES internet van csatlakoztatva." -ForegroundColor White
+    Show-AdapterInfo
+    Test-IPv6Status
+    Test-CGNAT
 
-Test-IPv6Status
-Test-CGNAT
+    Write-Host ""
+    Write-Host "================================================" -ForegroundColor Magenta
+    Write-Host "  MOST HUZD KI A VEZETEKES KABELT!" -ForegroundColor Magenta
+    Write-Host "  (vagy kapcsold le a vezetekes adaptert)" -ForegroundColor Magenta
+    Write-Host "  Utana csatlakoztasd a mobil stick-et / mobilnetet." -ForegroundColor Magenta
+    Write-Host "================================================" -ForegroundColor Magenta
+    Write-Host "Ha kesz vagy, nyomj BARMILYEN gombot a folytatashoz..." -ForegroundColor Yellow
+    try {
+        $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+    } catch {
+        # Nem interaktiv konzol (pl. ISE): Enter is jo
+        Read-Host "Nyomj Entert a folytatashoz" | Out-Null
+    }
+
+    Write-Host "Varakozas a mobil kapcsolat felepulesere (8 mp)..." -ForegroundColor DarkYellow
+    Start-Sleep -Seconds 8
+
+    # ---------- 2. FAZIS: MOBIL ----------
+    Write-Title "2. FAZIS - MOBIL / STICK KAPCSOLAT"
+    Show-AdapterInfo
+    Test-IPv6Status
+    Test-CGNAT
+
+    Write-Title "OSSZEHASONLITAS"
+    Write-Host "Hasonlitsd ossze a ket fazis eredmenyet:" -ForegroundColor Cyan
+    Write-Host "- Van-e IPv6 a vezetekesen / mobilon?"
+    Write-Host "- CGNAT jelei latszanak-e (belso/100.64.x.x publikus IP)?"
+    Write-Host "- Melyik adapter volt aktiv az egyes fazisokban?"
+} else {
+    Write-Host Aktiv_adapterek_keresese... -ForegroundColor Yellow
+    Get-ActiveAdapters | Format-Table -AutoSize
+
+    Test-IPv6Status
+    Test-CGNAT
+}
 
 Write-Title TESZT_VEGE
 

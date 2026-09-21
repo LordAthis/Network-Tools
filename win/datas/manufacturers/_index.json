@@ -1,6 +1,6 @@
 {
-  "version": "1.1",
-  "updated": "2026-09-04",
+  "version": "1.2",
+  "updated": "2026-09-21",
   "description": "Gyarto/algorithm fajlok indexe. Bovitett modban a MinerStatus ezt olvassa.",
   "load_order": [
     "bitmain_sha256.json",
@@ -14,7 +14,8 @@
     "bitaxe.json",
     "innosilicon.json",
     "auradine.json",
-    "ibelink.json"
+    "ibelink.json",
+    "bitdeer_sealminer.json"
   ],
   "files": {
     "bitmain_sha256.json": { "manufacturer": "Bitmain", "brand": "Antminer", "algorithms": ["SHA-256"], "priority": 1 },
@@ -28,6 +29,7 @@
     "bitaxe.json": { "manufacturer": "Open Source", "brand": "Bitaxe / NerdAxe", "algorithms": ["SHA-256"], "priority": 9 },
     "innosilicon.json": { "manufacturer": "Innosilicon", "algorithms": ["SHA-256", "Scrypt", "Equihash"], "priority": 10 },
     "auradine.json": { "manufacturer": "Auradine", "brand": "Teraflux", "algorithms": ["SHA-256"], "priority": 11 },
-    "ibelink.json": { "manufacturer": "iBeLink", "algorithms": ["SHA-256"], "priority": 12 }
+    "ibelink.json": { "manufacturer": "iBeLink", "algorithms": ["SHA-256"], "priority": 12 },
+    "bitdeer_sealminer.json": { "manufacturer": "Bitdeer", "brand": "SEALMINER", "algorithms": ["SHA-256"], "priority": 13 }
   }
 }

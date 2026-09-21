@@ -7,3 +7,9 @@ win/LOG/
 
 # A datas\ mappa (iplist.json, minerpoollist.json) VISSZASZANDEKOSAN nincs itt -
 # az mehet verziokezelobe, mert csak konfiguracios listakat tartalmaz.
+
+# Devices.local.json - a SAJAT, valos eszkoz- es felhasznalolista (MAC-cimek,
+# nevek, helyek = szemelyes adat), ezert nem valo verziokezelobe / publikus repoba.
+# A sablon + minta (datas/Devices.json) viszont igen. Lasd: win/DeviceList.ps1
+win/datas/Devices.local.json
+**/datas/Devices.local.json

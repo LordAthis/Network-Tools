@@ -1,0 +1,154 @@
+{
+  "version": "1.0.0",
+  "updated": "2026-09-21",
+  "description": "Felhasznalo- es eszkozlista. Egy eszkoz = egy bejegyzes a devices tombben, a MAC-cim(ek)hez kotve. A NetworkDiag/LOGtoINDEX/MinerStatus scriptek es a kesobbi HTML lista ebbol tudja, KI KICSODA a halozaton (nev, gazda, hely, szerep), a MAC-cim alapjan.",
+  "how_to_use": "1) Ez a fajl a SEMA + MINTA (example:true bejegyzesek, ezeket a listazo alapbol kihagyja). 2) A sajat, valos eszkozeidet a mellette levo Devices.local.json fajlba ird - ugyanilyen szerkezetben, csak a users/devices tombokkel. A .local fajl NINCS verziokezelve (.gitignore), igy MAC-cimek/nevek nem kerulnek publikus repoba. 3) Azonos id eseten a .local bejegyzes felulirja a sablonbelit. 4) Ellenorzes: .\\DeviceList.ps1 -Validate",
+  "privacy_note": "Valos MAC-cim + tulajdonos neve + hely = szemelyes adat. Publikus repoba ne commitold a kitoltott adatokat.",
+  "mac_format_note": "A MAC-cim barmilyen formaban irhato (AA:BB:CC:DD:EE:FF, AA-BB-CC-DD-EE-FF, aabb.ccdd.eeff, aabbccddeeff) - a DeviceList.ps1 minden osszehasonlitas elott normalizalja (csak hex, nagybetu, 12 karakter). A minta MAC-cimek a dokumentacios tartomanybol valok (00-00-5E-00-53-xx, RFC 7042).",
+  "vocab": {
+    "categories": ["miner", "computer", "server", "nas", "phone", "tablet", "tv", "router", "switch", "access_point", "network", "iot", "camera", "gaming", "printer", "other"],
+    "statuses": ["trusted", "known", "guest", "watch", "blocked", "retired"],
+    "status_meaning": {
+      "trusted": "ismert, ellenorzott, sajat eszkoz",
+      "known": "ismert, de nincs kulon ellenorizve",
+      "guest": "vendeg / ideiglenes eszkoz",
+      "watch": "megfigyelendo (gyanus, meg nem tisztazott)",
+      "blocked": "nem kivant a halozaton",
+      "retired": "kivezetett, mar nincs a halozaton (a bejegyzes tortenetnek marad)"
+    },
+    "user_roles": ["owner", "family", "guest", "admin", "employee", "service"],
+    "interface_types": ["ethernet", "wifi", "cellular", "usb", "virtual", "other"]
+  },
+  "field_notes": {
+    "users[].id": "egyedi, stabil azonosito (nem valtozik, ha a nevet atirod)",
+    "users[].name": "megjeleno teljes nev; short_name: rovid cimke a HTML listaban (chip/badge)",
+    "users[].contact": "opcionalis (email/telefon) - szemelyes adat, csak a .local fajlba",
+    "devices[].id": "egyedi, stabil azonosito - EZ a technikai kulcs, a name/short_name csak megjelenites",
+    "devices[].macs[]": "az eszkoz osszes halozati csatolojanak MAC-je (pl. vezetekes + wifi kulon sor). Innen keres a script.",
+    "devices[].macs[].randomized": "true, ha a telefon/laptop privat (veletlen) wifi-MAC-et hasznal - az ilyen MAC valtozhat, a script figyelmeztet, ha a MAC 'locally administered' es nincs jelolve",
+    "devices[].owner_id": "users[].id-re mutat; null = nincs gazda / kozos",
+    "devices[].category": "vocab.categories egyike (a Macouilist.json kategoriaival kompatibilis)",
+    "devices[].status": "vocab.statuses egyike",
+    "devices[].network": "ip_static: fix IP (ha van), ip_last_seen: utolso lathato IP (script toltheti), dhcp_reservation, subnet, hostname, admin_url",
+    "devices[].monitoring": "expect_online: mindig bekapcsolva kell lennie; expected_ports: elvart nyitott portok; alert_if_missing: jelezzen, ha nem lathato",
+    "devices[].extra": "kategoriaspecifikus szabad blokk (pl. extra.miner.algorithm / expected_pool / api_port / worker_name)",
+    "devices[].display": "HTML listahoz: icon (ikon-kulcsszo, nem emoji: miner/laptop/phone/tv/router/switch/camera/printer/iot), group (csoportcim), order (rendezes), hide (true = ne jelenjen meg)",
+    "devices[].first_seen / last_seen / last_verified": "ISO datum (YYYY-MM-DD); last_verified = amikor utoljara szemmel/fizikailag ellenoriztek",
+    "example": "true = minta bejegyzes; a listazo alapbol kihagyja (-IncludeExamples-szel latszik)"
+  },
+  "users": [
+    {
+      "id": "user-minta",
+      "example": true,
+      "name": "Minta Felhasznalo",
+      "short_name": "Minta",
+      "role": "owner",
+      "contact": "",
+      "notes": "Sablon - a valos felhasznalokat a Devices.local.json-ba ird."
+    }
+  ],
+  "devices": [
+    {
+      "id": "dev-minta-miner-01",
+      "example": true,
+      "name": "Minta miner (Antminer)",
+      "short_name": "Miner-1",
+      "category": "miner",
+      "status": "trusted",
+      "owner_id": "user-minta",
+      "macs": [
+        { "mac": "00:00:5E:00:53:10", "interface": "ethernet", "randomized": false, "note": "" }
+      ],
+      "vendor": "Bitmain Technologies Inc",
+      "model": "Antminer S21",
+      "serial": "",
+      "firmware": "",
+      "location": "Garazs, 2. polc",
+      "network": {
+        "hostname": "",
+        "ip_static": "192.168.1.50",
+        "ip_last_seen": "",
+        "dhcp_reservation": true,
+        "subnet": "192.168.1.0/24",
+        "admin_url": "http://192.168.1.50/"
+      },
+      "monitoring": { "expect_online": true, "expected_ports": [80, 4028], "alert_if_missing": true },
+      "extra": {
+        "miner": { "algorithm": "SHA-256", "expected_pool": "", "api_port": 4028, "worker_name": "" }
+      },
+      "first_seen": "",
+      "last_seen": "",
+      "last_verified": "",
+      "tags": ["mining"],
+      "display": { "icon": "miner", "group": "Minerek", "order": 10, "hide": false },
+      "notes": ""
+    },
+    {
+      "id": "dev-minta-laptop-01",
+      "example": true,
+      "name": "Minta laptop",
+      "short_name": "Laptop",
+      "category": "computer",
+      "status": "trusted",
+      "owner_id": "user-minta",
+      "macs": [
+        { "mac": "00:00:5E:00:53:20", "interface": "ethernet", "randomized": false, "note": "dokkolo / vezetekes" },
+        { "mac": "00:00:5E:00:53:21", "interface": "wifi", "randomized": false, "note": "" }
+      ],
+      "vendor": "",
+      "model": "",
+      "serial": "",
+      "firmware": "",
+      "location": "Nappali",
+      "network": {
+        "hostname": "MINTA-LAPTOP",
+        "ip_static": "",
+        "ip_last_seen": "",
+        "dhcp_reservation": false,
+        "subnet": "",
+        "admin_url": ""
+      },
+      "monitoring": { "expect_online": false, "expected_ports": [], "alert_if_missing": false },
+      "extra": {},
+      "first_seen": "",
+      "last_seen": "",
+      "last_verified": "",
+      "tags": [],
+      "display": { "icon": "laptop", "group": "Szamitogepek", "order": 20, "hide": false },
+      "notes": "Ket MAC egy eszkozhoz: barmelyik alapjan ez a bejegyzes talalhato meg."
+    },
+    {
+      "id": "dev-minta-phone-01",
+      "example": true,
+      "name": "Minta telefon",
+      "short_name": "Telefon",
+      "category": "phone",
+      "status": "known",
+      "owner_id": "user-minta",
+      "macs": [
+        { "mac": "02:00:5E:00:53:30", "interface": "wifi", "randomized": true, "note": "privat wifi-cim: SSID-nkent / telefon-visszaallitaskor valtozhat" }
+      ],
+      "vendor": "",
+      "model": "",
+      "serial": "",
+      "firmware": "",
+      "location": "",
+      "network": {
+        "hostname": "",
+        "ip_static": "",
+        "ip_last_seen": "",
+        "dhcp_reservation": false,
+        "subnet": "",
+        "admin_url": ""
+      },
+      "monitoring": { "expect_online": false, "expected_ports": [], "alert_if_missing": false },
+      "extra": {},
+      "first_seen": "",
+      "last_seen": "",
+      "last_verified": "",
+      "tags": [],
+      "display": { "icon": "phone", "group": "Mobilok", "order": 30, "hide": false },
+      "notes": "Randomizalt MAC: ha a telefon a halozatban 'sajat/fix MAC'-re allitva, add meg azt a MAC-et es allitsd a randomized-ot false-ra."
+    }
+  ]
+}
