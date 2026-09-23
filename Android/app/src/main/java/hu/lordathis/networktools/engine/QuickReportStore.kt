@@ -53,6 +53,6 @@ class QuickReportStore(private val dir: File) {
         networkKey = o.getString("networkKey"),
         finishedMs = o.getLong("finishedMs"),
         headline = o.getString("headline"),
-        logFileName = o.optString("logFileName", null).takeIf { !o.isNull("logFileName") },
+        logFileName = if (o.has("logFileName") && !o.isNull("logFileName")) o.getString("logFileName") else null,
     )
 }

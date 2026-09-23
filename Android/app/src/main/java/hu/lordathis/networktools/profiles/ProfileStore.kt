@@ -89,6 +89,10 @@ class ProfileStore(private val dir: File) {
 
     // ---------------------------------------------------------------------------------------
 
+    /** Null-biztos String-olvasás: hiányzó vagy JSON null mező esetén Kotlin `null` (nem az "üres" String eset). */
+    private fun readNullableString(o: JSONObject, key: String): String? =
+        if (o.has(key) && !o.isNull(key)) o.getString(key).takeIf { it.isNotEmpty() } else null
+
     private fun writeAtomically(text: String) {
         val tmp = File(dir, file.name + ".tmp")
         tmp.writeText(text, Charsets.UTF_8)
@@ -118,8 +122,8 @@ class ProfileStore(private val dir: File) {
         val devices = (0 until devArr.length()).map { decodeDevice(devArr.getJSONObject(it)) }
         return NetworkProfile(
             id = o.getString("id"),
-            ssid = o.optString("ssid", null).takeIf { o.isNull("ssid").not() && !it.isNullOrEmpty() },
-            bssid = o.optString("bssid", null).takeIf { o.isNull("bssid").not() && !it.isNullOrEmpty() },
+            ssid = readNullableString(o, "ssid"),
+            bssid = readNullableString(o, "bssid"),
             nick = o.optString("nick", ""),
             active = o.optBoolean("active", true),
             notes = o.optString("notes", ""),

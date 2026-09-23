@@ -28,7 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.FormatListBulleted
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Settings
@@ -366,7 +366,7 @@ internal fun RightDrawerPanel(
     ) {
         RailIconButton(icon = Icons.Filled.Edit, contentDescription = "Jegyzet", onClick = onNotes)
         RailIconButton(icon = Icons.Filled.Bolt, contentDescription = "Gyorsjelentés", onClick = onQuickAccess)
-        RailIconButton(icon = Icons.Filled.FormatListBulleted, contentDescription = "Napló", onClick = onLogOpen)
+        RailIconButton(icon = Icons.AutoMirrored.Filled.FormatListBulleted, contentDescription = "Napló", onClick = onLogOpen)
         RailDivider()
         RailIconButton(icon = Icons.Filled.Sync, contentDescription = "Mentés", onClick = onSync)
         RailIconButton(icon = Icons.Filled.Speed, contentDescription = "Sebességteszt", onClick = onSpeedTest)

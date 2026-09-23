@@ -42,7 +42,15 @@ class NetworkIdentity(private val context: Context) {
     private val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     private val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
 
-    /** Az összes JELENLEG validált (internetet is adó) hálózat - lehet egyszerre WiFi ÉS mobilnet is ("vegyes"). */
+    /**
+     * Az összes JELENLEG validált (internetet is adó) hálózat - lehet egyszerre WiFi ÉS mobilnet is ("vegyes").
+     *
+     * A `ConnectivityManager.getAllNetworks()` Android 12 óta elavultnak jelölt API - a hivatalos javaslat
+     * folyamatos `registerNetworkCallback`-alapú követés lenne. Az AppHub MÁR regisztrál egy NetworkCallback-et
+     * (hálózatváltás-figyeléshez), de ez a függvény egy EGYSZERI, szinkron pillanatképet ad (induláskor, gyors
+     * ellenőrzéshez) - ehhez az `allNetworks` egyszerűbb és elég, a figyelmeztetést tudatosan elfogadjuk.
+     */
+    @Suppress("DEPRECATION")
     fun activeConnections(): List<ActiveConnection> {
         val result = ArrayList<ActiveConnection>()
         for (network in cm.allNetworks) {
