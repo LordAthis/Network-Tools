@@ -1,4 +1,4 @@
-// Verzio: v0.1.0 - 2026-09-21
+// Verzio: v0.5.0 - 2026-09-22
 package hu.lordathis.networktools.ui
 
 import androidx.compose.animation.core.animate
@@ -27,10 +27,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -317,7 +320,6 @@ internal fun DrawerScrim(left: EdgeDrawerState, right: EdgeDrawerState, onDismis
 
 @Composable
 internal fun LeftDrawerPanel(
-    onNotes: () -> Unit,
     onFunction: (Int) -> Unit,
 ) {
     val shape = RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp)
@@ -332,17 +334,21 @@ internal fun LeftDrawerPanel(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // A Kezdőlapra a lap alján lévő házikó-gomb visz vissza, ezért itt nincs Kezdőlap gomb.
-        RailIconButton(icon = Icons.Filled.Edit, contentDescription = "Jegyzet", onClick = onNotes)
-        RailTextButton(label = "F1", contentDescription = "F1", onClick = { onFunction(1) })
-        RailTextButton(label = "F2", contentDescription = "F2", onClick = { onFunction(2) })
-        RailTextButton(label = "F3", contentDescription = "F3", onClick = { onFunction(3) })
+        // A Jegyzet a jobb oldali fiókba került; itt csak a hálózati teszt-csoportok (F1-F3) vannak.
+        RailTextButton(label = "F1", contentDescription = "F1 - Hálózat és eszközök", onClick = { onFunction(1) })
+        RailTextButton(label = "F2", contentDescription = "F2 - Portok és szolgáltatások", onClick = { onFunction(2) })
+        RailTextButton(label = "F3", contentDescription = "F3 - Útvonal és kapcsolat", onClick = { onFunction(3) })
     }
 }
 
 @Composable
 internal fun RightDrawerPanel(
+    onNotes: () -> Unit,
     onQuickAccess: () -> Unit,
     onLogOpen: () -> Unit,
+    onSync: () -> Unit,
+    onSpeedTest: () -> Unit,
+    onExternalServices: () -> Unit,
     onWebReader: () -> Unit,
     onSettings: () -> Unit,
     onAbout: () -> Unit,
@@ -358,8 +364,13 @@ internal fun RightDrawerPanel(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        RailIconButton(icon = Icons.Filled.Edit, contentDescription = "Jegyzet", onClick = onNotes)
         RailIconButton(icon = Icons.Filled.Bolt, contentDescription = "Gyorsjelentés", onClick = onQuickAccess)
         RailIconButton(icon = Icons.Filled.FormatListBulleted, contentDescription = "Napló", onClick = onLogOpen)
+        RailDivider()
+        RailIconButton(icon = Icons.Filled.Sync, contentDescription = "Mentés", onClick = onSync)
+        RailIconButton(icon = Icons.Filled.Speed, contentDescription = "Sebességteszt", onClick = onSpeedTest)
+        RailIconButton(icon = Icons.Filled.Extension, contentDescription = "Külső szolgáltatók", onClick = onExternalServices)
         RailDivider()
         RailIconButton(icon = Icons.Filled.Public, contentDescription = "Webolvasó", onClick = onWebReader)
         RailIconButton(icon = Icons.Filled.Settings, contentDescription = "Beállítások", onClick = onSettings)

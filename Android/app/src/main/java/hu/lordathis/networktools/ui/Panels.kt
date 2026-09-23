@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -52,10 +53,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import hu.lordathis.networktools.engine.FeedEntry
-import hu.lordathis.networktools.engine.FeedLevel
+import hu.lordathis.networktools.engine.JobStatus
+import hu.lordathis.networktools.engine.QuickCheckState
+import hu.lordathis.networktools.engine.TestJob
+import hu.lordathis.networktools.engine.TestRunSummary
+import hu.lordathis.networktools.network.ConnectionKind
+import hu.lordathis.networktools.profiles.ProfileMatch
 import java.time.Instant
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -141,72 +145,188 @@ internal fun StripedPanel(
     }
 }
 
-private val FEED_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
 private val DATE_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd. HH:mm")
 
 /** Idő (ms) olvasható dátum+óra formában (a helyi időzónában). */
 internal fun formatDateTime(ms: Long): String =
     DATE_TIME_FORMAT.format(Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()))
 
+/**
+ * GYORS ELLENŐRZÉS kártya: induláskor / hálózatváltáskor frissül, és amíg a hálózat/kapcsolat él,
+ * VÁLTOZATLANUL a paneljén marad - mély kutatási adat ide sosem kerül (ld. a felhasználói kérés:
+ * "a gyors ellenőrzés marad a paneljén, oda mély kutatási információk nem kerülnek").
+ */
 @Composable
-private fun FeedRow(entry: FeedEntry) {
-    val color = when (entry.level) {
-        FeedLevel.INFO -> AccentBlue
-        FeedLevel.OK -> Accent
-        FeedLevel.WARN -> WarnColor
-        FeedLevel.ERROR -> DangerColor
-    }
+internal fun QuickCheckCard(state: QuickCheckState) {
     val shape = RoundedCornerShape(10.dp)
-    val time = LocalTime.ofInstant(Instant.ofEpochMilli(entry.timeMs), ZoneId.systemDefault()).format(FEED_TIME)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(color.copy(alpha = 0.10f), shape)
-            .border(1.dp, color.copy(alpha = 0.4f), shape)
-            .padding(horizontal = 10.dp, vertical = 7.dp)
+            .background(PanelBg, shape)
+            .border(1.dp, Accent.copy(alpha = 0.4f), shape)
+            .padding(10.dp),
     ) {
-        Text("$time  ·  ${entry.source}", color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-        Text(entry.text, color = TextMain, fontSize = 11.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("GYORS ELLENŐRZÉS", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Spacer(Modifier.weight(1f))
+            if (state.running) Text("frissítés...", color = TextDim, fontSize = 9.sp)
+        }
+        Spacer(Modifier.height(4.dp))
+        if (state.connections.isEmpty()) {
+            Text("Nincs aktív hálózati kapcsolat.", color = WarnColor, fontSize = 11.sp)
+        } else {
+            val kinds = state.connections.map { it.kind }.distinct()
+            val typeText = when {
+                kinds.size > 1 -> "vegyes (" + kinds.joinToString(" + ") { transportLabel(it) } + ")"
+                else -> transportLabel(kinds.first())
+            }
+            Text("Kapcsolat: $typeText", color = TextMain, fontSize = 12.sp)
+            val networkLabel = when {
+                state.match is ProfileMatch.Exact -> "Ismert hálózat: ${state.activeProfile?.displayName}"
+                state.wifiIdentity != null -> "Új/ismeretlen hálózat: ${state.wifiIdentity.ssid ?: state.networkLogName}"
+                else -> null
+            }
+            if (networkLabel != null) Text(networkLabel, color = AccentBlue, fontSize = 11.sp)
+            val count = state.quickDeviceCount
+            if (count != null) Text("Gyors eszközszám: $count élő gép a hálózaton", color = TextMain, fontSize = 11.sp)
+            Text(
+                if (state.internetReachable == true) "Internet: elérhető" else "Internet: nem elérhető",
+                color = if (state.internetReachable == true) Accent else DangerColor,
+                fontSize = 11.sp,
+            )
+        }
+    }
+}
+
+private fun transportLabel(kind: ConnectionKind): String = when (kind) {
+    ConnectionKind.WIFI -> "WiFi"
+    ConnectionKind.CELLULAR -> "mobilnet"
+    ConnectionKind.ETHERNET -> "vezetékes"
+    ConnectionKind.VPN -> "VPN"
+    ConnectionKind.OTHER -> "egyéb"
+}
+
+/** GYORSJELENTÉS keret: a legutóbbi tesztek összefoglalója, a JELENLEGI hálózatra szűrve. */
+@Composable
+internal fun QuickReportCard(summaries: List<TestRunSummary>) {
+    val shape = RoundedCornerShape(10.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(PanelBg, shape)
+            .border(1.dp, AccentBlue.copy(alpha = 0.4f), shape)
+            .padding(10.dp),
+    ) {
+        Text("GYORSJELENTÉS", color = AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Spacer(Modifier.height(4.dp))
+        if (summaries.isEmpty()) {
+            Text("Ezen a hálózaton még nem futott teszt.", color = TextDim, fontSize = 11.sp)
+        } else {
+            summaries.sortedByDescending { it.finishedMs }.take(6).forEach { s ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.shortCode, color = AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(50.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(s.headline, color = TextMain, fontSize = 11.sp)
+                        Text(formatDateTime(s.finishedMs), color = TextDim, fontSize = 9.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A tesztek terminál-szerű élő kimenete - lapfüllel, ha egyszerre több fut. */
+@Composable
+private fun TestTerminalArea(jobs: List<TestJob>) {
+    val running = jobs.filter { it.status == JobStatus.RUNNING }
+    var selected by remember { mutableStateOf<String?>(null) }
+    val active = running.firstOrNull { it.jobId == selected } ?: running.firstOrNull()
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (running.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Nincs jelenleg futó teszt.", color = TextDim, fontSize = 11.sp)
+            }
+            return
+        }
+        if (running.size > 1) {
+            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                for (job in running) {
+                    val isSelected = job.jobId == active?.jobId
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isSelected) Accent.copy(alpha = 0.2f) else Color.Transparent)
+                            .clickable { selected = job.jobId }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Text(job.shortCode, color = if (isSelected) Accent else TextDim, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        if (active != null) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                items(active.lines) { line -> Text(line, color = Accent, fontSize = 9.sp) }
+            }
+        }
     }
 }
 
 /**
- * Kezdőlap: a VISSZAJELZÉSEK sávja (csak olvasható): az app eseményei és -
- * a későbbi körben - a háttérben futó tesztek eredményei / részeredményei. Funkció-gomb nincs rajta.
- * A háttérben az app-ikon halvány, álló másolata látszik.
+ * Kezdőlap: fent a GYORS ELLENŐRZÉS és a GYORSJELENTÉS kártya (mindkettő állandó, hálózat-szűrt),
+ * alatta a VISSZAJELZÉSEK terület, két részre osztva: felül (2/3) az éppen futó teszt(ek) élő,
+ * terminál-szerű kimenete lapfüllel, alul (1/3) az állandó, görgethető LOG - mindkettő önállóan görgethető.
  */
 @Composable
-internal fun FeedStripedPanel(modifier: Modifier, entries: List<FeedEntry>) {
+internal fun HomeStripedPanel(
+    modifier: Modifier,
+    quickCheck: QuickCheckState,
+    quickReport: List<TestRunSummary>,
+    logLines: List<String>,
+    testJobs: List<TestJob>,
+) {
     val listState = rememberLazyListState()
-    // Új bejegyzésnél a lista az aljára görget.
-    LaunchedEffect(entries.size) {
-        if (entries.isNotEmpty()) listState.scrollToItem(entries.size - 1)
+    LaunchedEffect(logLines.size) {
+        if (logLines.isNotEmpty()) listState.scrollToItem(logLines.size - 1)
     }
-    StripedPanel(
-        modifier = modifier,
-        topStripe = StripeSpec("VISSZAJELZÉSEK", enabled = false, onClick = null)
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            NetworkIcon(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(220.dp)
-                    .alpha(0.08f)
-            )
-            if (entries.isEmpty()) {
-                Text(
-                    "Itt jelennek meg a visszajelzések és a háttérben futó tesztek eredményei.",
-                    color = TextDim,
-                    fontSize = 11.sp
-                )
-            } else {
-                LazyColumn(
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(entries) { entry -> FeedRow(entry) }
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        QuickCheckCard(quickCheck)
+        QuickReportCard(quickReport)
+        StripedPanel(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            topStripe = StripeSpec("VISSZAJELZÉSEK", enabled = false, onClick = null),
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                NetworkIcon(modifier = Modifier.align(Alignment.Center).size(160.dp).alpha(0.06f))
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.weight(2f).fillMaxWidth()) { TestTerminalArea(testJobs) }
+                    androidx.compose.material3.HorizontalDivider(color = Accent.copy(alpha = 0.25f))
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp)) {
+                        if (logLines.isEmpty()) {
+                            Text("Itt jelenik meg az állandó napló (indítás, mentés, tesztek stb.).", color = TextDim, fontSize = 10.sp)
+                        } else {
+                            LazyColumn(state = listState) {
+                                items(logLines) { line -> Text(line, color = TextDim, fontSize = 9.sp) }
+                            }
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+/** A jobb fiók "Gyorsjelentés" gombja: ugyanaz a két kártya, teljes képernyőn (a VISSZAJELZÉSEK terminál nélkül). */
+@Composable
+internal fun QuickReportFullStripedPanel(modifier: Modifier, quickCheck: QuickCheckState, quickReport: List<TestRunSummary>) {
+    StripedPanel(modifier = modifier, topStripe = StripeSpec("GYORSJELENTÉS", enabled = false, onClick = null)) {
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            QuickCheckCard(quickCheck)
+            QuickReportCard(quickReport)
         }
     }
 }

@@ -1,18 +1,31 @@
-// Verzio: v0.4.0 - 2026-09-21
+// Verzio: v0.5.0 - 2026-09-22
 package hu.lordathis.networktools.engine
 
 import android.app.Application
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import androidx.lifecycle.AndroidViewModel
 import hu.lordathis.networktools.BuildConfig
 import hu.lordathis.networktools.crypto.CryptoService
+import hu.lordathis.networktools.network.ConnectionKind
+import hu.lordathis.networktools.network.NetworkForcer
+import hu.lordathis.networktools.network.NetworkIdentity
+import hu.lordathis.networktools.profiles.NetworkProfile
+import hu.lordathis.networktools.profiles.ProfileDevice
+import hu.lordathis.networktools.profiles.ProfileMatch
+import hu.lordathis.networktools.profiles.ProfileStore
 import hu.lordathis.networktools.settings.AppPreferences
 import hu.lordathis.networktools.storage.AppStorage
 import hu.lordathis.networktools.storage.BackupManager
 import hu.lordathis.networktools.storage.BackupStatus
+import hu.lordathis.networktools.storage.ExportHistoryEntry
+import hu.lordathis.networktools.storage.ExportHistoryStore
 import hu.lordathis.networktools.storage.InstallInfo
 import hu.lordathis.networktools.notes.NoteItem
 import hu.lordathis.networktools.notes.NoteStore
@@ -50,12 +63,16 @@ import java.util.concurrent.Executors
  *   Titkosítás       CryptoService  önálló, saját szál-készletű szolgáltatás
  *   Adatmentés       backupScope    az adatok tükrözése a közös Dokumentumok/NetworkTools mappába
  *   Jegyzetek        NoteStore      egy jegyzet = egy .md fájl (notes/)
- *   Visszajelzések   feed           a Kezdőlap sávja: app-események és (később) a háttértesztek eredményei
+ *   Profilok         ProfileStore   hálózatonkénti (SSID+BSSID) eszköz/jelszó-regiszter (profiles/)
+ *   Gyors ellenőrzés QuickCheck     induláskor / hálózatváltáskor - lásd [quickCheck]
+ *   Teszt-motor      TestEngine     a mély hálózati tesztek (F1/F2/F3) - lásd [testJobs], [startTest]
+ *   Visszajelzések   feed           a Kezdőlap sávja: app-események és a tesztek eredményei
  *   Menü             a UI-ban: a fiók-állapot szinkron
  *
- * HÁTTÉRFELADATOK (a jövőbeli tesztek) SZABÁLYA: a feladat ITT, a hub scope-jában fut (nem az Activity-ben,
- * nem a képernyő kompozíciójában), ezért a képernyőváltás, a fiókok, a panelek megnyitása/zárása NEM állítja
- * le és nem szakítja meg. A részeredményeket a [postFeed]-del kell közölni: a Kezdőlap folyamatosan mutatja.
+ * HÁTTÉRFELADATOK (a tesztek) SZABÁLYA: a feladat ITT, a hub SAJÁT, hosszú életű scope-jában fut (nem az
+ * Activity-ben, nem a képernyő kompozíciójában), ezért a képernyőváltás, a fiókok, a panelek megnyitása/
+ * zárása NEM állítja le és NEM szakítja meg. A részeredményeket a [postFeed]-del és a [TestEngine.jobs]
+ * StateFlow-val közli: a Kezdőlap/VISSZAJELZÉSEK panel folyamatosan mutatja, amíg fut is.
  * Hosszan futó feladatnál a BackgroundService (Beállítások > Háttérben futás) tartja életben a folyamatot.
  */
 class AppHub(application: Application) : AndroidViewModel(application) {
@@ -109,6 +126,65 @@ class AppHub(application: Application) : AndroidViewModel(application) {
     val backupStatus: StateFlow<BackupStatus> = backupState.asStateFlow()
     private var backupWasAvailable = false
 
+    // --- Hálózati profilok (SSID+BSSID -> eszközlista, jelszavak) ---------------------------------------
+    private val profileStore = ProfileStore(storage.profilesDir)
+    private val profileMutex = Mutex()
+    private val profilesState = MutableStateFlow<List<NetworkProfile>>(emptyList())
+    val profiles: StateFlow<List<NetworkProfile>> = profilesState.asStateFlow()
+
+    // --- Gyors ellenőrzés (induláskor / hálózatváltáskor) + a mély teszt-motor ------------------------
+    private val networkIdentity = NetworkIdentity(appContext)
+    private val quickCheckRunner = QuickCheckRunner(networkIdentity, profileStore)
+    private val quickCheckState = MutableStateFlow(QuickCheckState())
+    val quickCheck: StateFlow<QuickCheckState> = quickCheckState.asStateFlow()
+
+    private val quickReportStore = QuickReportStore(storage.profilesDir)
+    private val quickReportState = MutableStateFlow<List<TestRunSummary>>(emptyList())
+    /** A Gyorsjelentés alsó kerete: csak a JELENLEGI hálózathoz tartozó teszt-összefoglalók. */
+    val quickReportForCurrentNetwork: StateFlow<List<TestRunSummary>> = quickReportState.asStateFlow()
+
+    private val testScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val testEngine = TestEngine(
+        testLogDir = storage.testLogDir,
+        quickReportStore = quickReportStore,
+        identity = networkIdentity,
+        prefs = prefs,
+        scope = testScope,
+        currentNetworkKey = { quickCheckState.value.networkKey },
+        currentNetworkLogName = { quickCheckState.value.networkLogName },
+        onAppLog = { log(it) },
+    )
+    val testJobs: StateFlow<List<TestJob>> = testEngine.jobs
+
+    // --- Mentés-előzmény (a Sync/Mentés panel alsó listája) ---------------------------------------------
+    private val exportHistoryStore = ExportHistoryStore(File(storage.root, "export_history.csv"))
+    private val exportHistoryState = MutableStateFlow<List<ExportHistoryEntry>>(emptyList())
+    val exportHistory: StateFlow<List<ExportHistoryEntry>> = exportHistoryState.asStateFlow()
+
+    // --- WiFi/mobilnet "erre kényszerítés" (a házikó melletti ikonok) -----------------------------------
+    private val forcedTransportState = MutableStateFlow(
+        runCatching { ConnectionKind.valueOf(prefs.forcedTransport) }.getOrNull()
+    )
+    val forcedTransport: StateFlow<ConnectionKind?> = forcedTransportState.asStateFlow()
+
+    fun setForcedTransport(kind: ConnectionKind?) {
+        forcedTransportState.value = kind
+        prefs.forcedTransport = kind?.name ?: "NONE"
+        NetworkForcer.apply(appContext, kind)
+        postFeed(
+            "Hálózat",
+            if (kind == null) "Hálózat-kényszerítés kikapcsolva." else "Forgalom erre kényszerítve: $kind",
+            FeedLevel.INFO,
+        )
+    }
+
+    fun openSystemNetworkToggle(kind: ConnectionKind) {
+        NetworkForcer.openSystemToggle(appContext, kind)
+    }
+
+    private val connectivityManager = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
+
     init {
         log("Network Tool's elindult (v${BuildConfig.VERSION_NAME}).")
         postFeed("Alkalmazás", "Elindult (v${BuildConfig.VERSION_NAME}).", FeedLevel.INFO)
@@ -133,9 +209,14 @@ class AppHub(application: Application) : AndroidViewModel(application) {
             try {
                 logStore.purgeOld()
                 Migrations.run(installInfo, storage) { log(it) }
-                val tail = logStore.loadTail(MAX_LOG_LINES)
+                // A VISSZAJELZÉSEK panel állandó LOG-ja a korábbi (akár tegnapi) indítások sorait is
+                // mutassa, nem csak a mai napét - ezért itt readAll() (minden megmaradt napi fájl), nem
+                // csak a mai nap loadTail()-je.
+                val tail = logStore.readAll().lines().filter { it.isNotBlank() }.takeLast(MAX_LOG_LINES)
                 logState.update { (tail + it).takeLast(MAX_LOG_LINES) }
                 noteState.value = noteStore.loadAll()
+                profilesState.value = profileStore.loadAll()
+                exportHistoryState.value = exportHistoryStore.loadAll()
                 refreshLogFiles()
             } catch (e: Exception) {
                 log("Adatok betöltése sikertelen: ${e.message}")
@@ -151,6 +232,88 @@ class AppHub(application: Application) : AndroidViewModel(application) {
                 runBackupCycle("időzített", quiet = true)
             }
         }
+
+        // Induláskori GYORS ellenőrzés: milyen hálózat(ok) érhetők el, ismerős-e, hány élő eszköz -
+        // azonnal a Kezdőlapra és a Gyorsjelentésbe. Utána a hálózatváltásokat egy NetworkCallback figyeli.
+        testScope.launch {
+            delay(800)
+            runQuickCheck()
+            registerNetworkWatcher()
+            runArpSpikeIfNeeded()
+        }
+    }
+
+    /** Egy NetworkCallback, ami a kapcsolat VÁLTOZÁSAKOR (nem időzítve!) újrafuttatja a gyors ellenőrzést. */
+    private fun registerNetworkWatcher() {
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                postFeed("Hálózat", "Új kapcsolat elérhető.", FeedLevel.INFO)
+                testScope.launch { runQuickCheck() }
+            }
+
+            override fun onLost(network: Network) {
+                postFeed("Hálózat", "Egy kapcsolat megszűnt.", FeedLevel.WARN)
+                testScope.launch { runQuickCheck() }
+            }
+
+            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                testScope.launch { runQuickCheck(deepSweep = false) }
+            }
+        }
+        try {
+            connectivityManager.registerNetworkCallback(request, callback)
+            networkCallback = callback
+        } catch (e: Exception) {
+            log("Hálózat-figyelő regisztrálása sikertelen: ${e.message}")
+        }
+    }
+
+    /**
+     * A gyors ellenőrzés futtatása/frissítése. Ismeretlen hálózatnál (vagy azonos SSID-jű, de eltérő
+     * BSSID-jű "ütközésnél") automatikusan létrejön egy profil-csonk - lásd [ProfileStore.match].
+     * [deepSweep]: fusson-e a gyors élő-host-számlálás is (kapcsolat-JELLEMZŐ változásnál nem kell újra).
+     */
+    private suspend fun runQuickCheck(deepSweep: Boolean = true) {
+        quickCheckState.update { it.copy(running = true) }
+        val existing = profilesState.value
+        val result = quickCheckRunner.run(existing, deepSweep = deepSweep)
+        if (result.match is ProfileMatch.SsidCollision) {
+            postFeed(
+                "Hálózat",
+                "Azonos nevű (\"${result.wifiIdentity?.ssid}\"), de MÁS hálózat, mint egy elmentett profilod - új, önálló profil jön létre.",
+                FeedLevel.WARN,
+            )
+        }
+        val finalResult = if (result.match !is ProfileMatch.Exact && result.wifiIdentity != null) {
+            profileMutex.withLock {
+                val now = System.currentTimeMillis()
+                val created = profileStore.newProfile(result.wifiIdentity.ssid, result.wifiIdentity.bssid, now)
+                val updated = profilesState.value + created
+                profilesState.value = updated
+                withContext(storageDispatcher) { profileStore.saveAll(updated) }
+                log("Új hálózati profil létrehozva: ${created.shortLabel()}")
+                result.copy(activeProfile = created)
+            }
+        } else {
+            result
+        }
+        quickCheckState.value = finalResult
+        quickReportState.value = quickReportStore.forNetwork(finalResult.networkKey)
+        if (finalResult.activeProfile != null && result.match is ProfileMatch.Exact) {
+            postFeed("Hálózat", "Ismert hálózat: ${finalResult.activeProfile.displayName}", FeedLevel.OK)
+        }
+    }
+
+    /** EGYSZERI próba: olvasható-e a /proc/net/arp - a következő indításkor már nem fut le újra. */
+    private suspend fun runArpSpikeIfNeeded() {
+        if (prefs.arpSpikeRan) return
+        log("ARP-tábla olvashatósági próba indul (egyszeri teszt)...")
+        val def = TestCatalog.arpSpike(appContext)
+        testEngine.start(def.id, def.name, def.shortCode)
+        prefs.arpSpikeRan = true
     }
 
     // ==================================================================================
@@ -191,7 +354,11 @@ class AppHub(application: Application) : AndroidViewModel(application) {
                 ?: error("A célfájl nem nyitható meg.")
             out.use { it.write(bytes) }
             countEntries(bytes)
-        }.onSuccess { log("${kind.label} elmentve ($it bejegyzés).") }
+        }.onSuccess {
+            log("${kind.label} elmentve ($it bejegyzés).")
+            exportHistoryStore.append(kind.label, "Fájl (választott hely)", "$it bejegyzés")
+            exportHistoryState.value = exportHistoryStore.loadAll()
+        }
             .onFailure { log("${kind.label} mentése sikertelen: ${it.message}") }
     }
 
@@ -220,7 +387,11 @@ class AppHub(application: Application) : AndroidViewModel(application) {
     private fun backupFolder(): File =
         File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "NetworkTools")
 
-    private fun backupLock(dir: String): Any = if (dir == "notes") noteStore else logStore
+    private fun backupLock(dir: String): Any = when (dir) {
+        "notes" -> noteStore
+        "profiles" -> profileStore
+        else -> logStore
+    }
 
     /**
      * Egy mentési kör: ELŐBB visszaállítás/egyesítés a mentésből (újratelepítés után innen jönnek vissza az adatok),
@@ -245,7 +416,7 @@ class AppHub(application: Application) : AndroidViewModel(application) {
             }
             try {
                 val manager = BackupManager(storage.root, backupFolder())
-                val dirs = listOf("log", "notes")
+                val dirs = listOf("log", "notes", "profiles")
                 val restore = manager.restore(dirs, ::backupLock)
                 if (restore.changedLocal) {
                     log("Adatmentés: ${restore.restored} fájl visszaállítva, ${restore.merged} egyesítve a mentésből.")
@@ -358,6 +529,110 @@ class AppHub(application: Application) : AndroidViewModel(application) {
     }
 
     // ==================================================================================
+    // Hálózati profilok (SSID+BSSID -> eszközlista) - a Floppy-panel (mentés/törlés/betöltés/
+    // inaktiválás UI) egy következő körben készül, de az alap-műveletek innen már elérhetők.
+    // ==================================================================================
+
+    fun renameProfile(id: String, nick: String) {
+        testScope.launch {
+            profileMutex.withLock {
+                val updated = profilesState.value.map {
+                    if (it.id == id) it.copy(nick = nick.trim(), updatedMs = System.currentTimeMillis()) else it
+                }
+                profilesState.value = updated
+                withContext(storageDispatcher) { profileStore.saveAll(updated) }
+                log("Profil átnevezve: \"$nick\"")
+            }
+        }
+    }
+
+    fun setProfileActive(id: String, active: Boolean) {
+        testScope.launch {
+            profileMutex.withLock {
+                val updated = profilesState.value.map {
+                    if (it.id == id) it.copy(active = active, updatedMs = System.currentTimeMillis()) else it
+                }
+                profilesState.value = updated
+                withContext(storageDispatcher) { profileStore.saveAll(updated) }
+            }
+        }
+    }
+
+    /** Eszköz felvétele/frissítése egy profilban. A [password]/[account] itt még NYERS szöveg - itt titkosítjuk. */
+    fun upsertProfileDevice(
+        profileId: String,
+        mac: String,
+        deviceName: String,
+        nick: String,
+        category: String,
+        account: String,
+        password: String,
+        notes: String,
+    ) {
+        testScope.launch {
+            profileMutex.withLock {
+                val now = System.currentTimeMillis()
+                val accountEnc = if (account.isEmpty()) "" else profileStore.encryptSecret(account)
+                val passwordEnc = if (password.isEmpty()) "" else profileStore.encryptSecret(password)
+                val updated = profilesState.value.map { profile ->
+                    if (profile.id != profileId) return@map profile
+                    val existing = profile.devices.firstOrNull { it.mac == mac }
+                    val device = ProfileDevice(
+                        mac = mac,
+                        deviceName = deviceName,
+                        nick = nick,
+                        category = category,
+                        accountEnc = accountEnc,
+                        passwordEnc = passwordEnc,
+                        notes = notes,
+                        testRefs = existing?.testRefs ?: emptyList(),
+                        firstSeenMs = existing?.firstSeenMs ?: now,
+                        lastSeenMs = now,
+                    )
+                    profile.copy(
+                        devices = profile.devices.filterNot { it.mac == mac } + device,
+                        updatedMs = now,
+                    )
+                }
+                profilesState.value = updated
+                withContext(storageDispatcher) { profileStore.saveAll(updated) }
+                log("Eszköz mentve a profilban: $deviceName ($mac)")
+            }
+        }
+    }
+
+    /** Egy eszköz jelszó/fiók mezőjének VISSZAFEJTETT értéke - csak megjelenítéshez, óvatosan hívandó. */
+    fun revealDeviceSecret(encrypted: String): String = profileStore.decryptSecret(encrypted)
+
+    fun deleteProfileDevice(profileId: String, mac: String) {
+        testScope.launch {
+            profileMutex.withLock {
+                val updated = profilesState.value.map { profile ->
+                    if (profile.id == profileId) profile.copy(devices = profile.devices.filterNot { it.mac == mac }) else profile
+                }
+                profilesState.value = updated
+                withContext(storageDispatcher) { profileStore.saveAll(updated) }
+            }
+        }
+    }
+
+    // ==================================================================================
+    // Hálózati tesztek (F1/F2/F3) - lásd [TestCatalog], [TestEngine]
+    // ==================================================================================
+
+    fun startTest(testId: String) {
+        val def = TestCatalog.find(appContext, testId) ?: run {
+            log("Ismeretlen teszt-azonosító: $testId")
+            return
+        }
+        testEngine.start(def.id, def.name, def.shortCode)
+    }
+
+    fun isTestRunning(testId: String): Boolean = testEngine.isRunning(testId)
+
+    fun clearFinishedTests() = testEngine.clearFinished()
+
+    // ==================================================================================
     // Belső lépések
     // ==================================================================================
 
@@ -383,6 +658,8 @@ class AppHub(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         crypto.close()
+        networkCallback?.let { runCatching { connectivityManager.unregisterNetworkCallback(it) } }
+        testScope.cancel()
         backupScope.cancel()
         storageScope.cancel()
         writer.close { storageExecutor.shutdown() }

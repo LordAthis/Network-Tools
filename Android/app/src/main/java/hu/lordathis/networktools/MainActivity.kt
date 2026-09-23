@@ -1,4 +1,4 @@
-// Verzio: v0.4.1 - 2026-09-21
+// Verzio: v0.5.0 - 2026-09-22
 package hu.lordathis.networktools
 
 import android.Manifest
@@ -23,7 +23,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -31,13 +30,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -54,6 +53,9 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import hu.lordathis.networktools.engine.AppHub
 import hu.lordathis.networktools.engine.ExportKind
+import hu.lordathis.networktools.engine.JobStatus
+import hu.lordathis.networktools.engine.TestCatalog
+import hu.lordathis.networktools.network.ConnectionKind
 import hu.lordathis.networktools.notify.NotificationHelper
 import hu.lordathis.networktools.service.BackgroundService
 import hu.lordathis.networktools.ui.AboutStripedPanel
@@ -61,27 +63,30 @@ import hu.lordathis.networktools.ui.AppHeader
 import hu.lordathis.networktools.ui.BgBottom
 import hu.lordathis.networktools.ui.BgMid
 import hu.lordathis.networktools.ui.BgTop
+import hu.lordathis.networktools.ui.BottomBar
 import hu.lordathis.networktools.ui.ConfirmDialog
 import hu.lordathis.networktools.ui.DRAWER_PANEL_DP
 import hu.lordathis.networktools.notes.NoteItem
 import hu.lordathis.networktools.ui.DrawerScrim
 import hu.lordathis.networktools.ui.EdgeDrawer
 import hu.lordathis.networktools.ui.EdgeDrawerState
-import hu.lordathis.networktools.ui.FeedStripedPanel
-import hu.lordathis.networktools.ui.HomeButtonIcon
+import hu.lordathis.networktools.ui.HomeStripedPanel
 import hu.lordathis.networktools.ui.LeftDrawerPanel
 import hu.lordathis.networktools.ui.LogStripedPanel
-import hu.lordathis.networktools.ui.NameStripedPanel
 import hu.lordathis.networktools.ui.NetworkToolsTheme
 import hu.lordathis.networktools.ui.NotesStripedPanel
+import hu.lordathis.networktools.ui.QuickReportFullStripedPanel
 import hu.lordathis.networktools.ui.RightDrawerPanel
 import hu.lordathis.networktools.ui.SettingsActions
 import hu.lordathis.networktools.ui.SettingsStripedPanel
 import hu.lordathis.networktools.ui.SettingsUiState
 import hu.lordathis.networktools.ui.Skin
 import hu.lordathis.networktools.ui.StarField
+import hu.lordathis.networktools.ui.SyncStripedPanel
+import hu.lordathis.networktools.ui.TestGroupStripedPanel
 import hu.lordathis.networktools.ui.TextDim
 import hu.lordathis.networktools.ui.WebReaderStripedPanel
+import hu.lordathis.networktools.ui.WorkInProgressStripedPanel
 import hu.lordathis.networktools.ui.drawerGestures
 import kotlinx.coroutines.launch
 import java.io.File
@@ -89,19 +94,25 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 // ---------------------------------------------------------------------------
-// Network Tool's - natív Android / Jetpack Compose kliens. A funkciók közül csak a lent felsoroltak vannak meg.
+// Network Tool's - natív Android / Jetpack Compose kliens.
 //
-//   - Kezdőlap (HOME): fejléc + státusz + a VISSZAJELZÉSEK panel (app-események, később a háttérben futó
-//     tesztek eredményei). Funkció-gomb nincs rajta.
+//   - Kezdőlap (HOME): fejléc + státusz + GYORS ELLENŐRZÉS kártya (állandó, hálózat-szűrt) +
+//     GYORSJELENTÉS kártya (a legutóbbi tesztek összefoglalója, szintén hálózat-szűrt) + a
+//     VISSZAJELZÉSEK terület (2/3 élő teszt-terminál lapfüllel, 1/3 állandó LOG).
 //   - Két, szél-húzással (vagy a fogantyúra koppintással) nyitható fiók - a funkciók gombjai
 //     KIZÁRÓLAG itt vannak:
-//       Bal:  Jegyzet (.md jegyzetek) · F1 · F2 · F3 (az F-gombok panelén egyelőre csak a gomb neve áll)
-//       Jobb: Gyorsjelentés (csak név) · Napló · Webolvasó · Beállítások · Névjegy
-//   - Amíg nem a Kezdőlapon vagyunk, lent középen egy házikó (benne a hálózat-ikon): ez visz vissza a
-//     Kezdőlapra. Máshol a Kezdőlap-funkció nincs.
+//       Bal:  F1 · F2 · F3 (a "teljesen natívan megvalósítható" hálózati tesztek, csoportosítva)
+//       Jobb: Jegyzet · Gyorsjelentés · Napló · Mentés · Sebességteszt · Külső szolgáltatások ·
+//             Webolvasó · Beállítások · Névjegy
+//   - Alul MINDIG egy 3-ikonos sor: [mobilnet+fogaskerék] [közép: nyíl/házikó] [WiFi+fogaskerék].
+//     A közép ikon a Kezdőlapon lefelé mutató NYÍL (csak eredménnyel aktív -> Eredmények képernyő),
+//     minden más képernyőn HÁZIKÓ (vissza a Kezdőlapra).
 // ---------------------------------------------------------------------------
 
-private enum class Screen { HOME, SETTINGS, LOG, ABOUT, QUICK_REPORT, WEB_READER, PLACEHOLDER, NOTES }
+private enum class Screen {
+    HOME, SETTINGS, LOG, ABOUT, NOTES, WEB_READER,
+    QUICK_REPORT, TEST_GROUP, SYNC, SPEED_TEST, EXTERNAL_SERVICES, RESULTS,
+}
 
 // A "Napló mentése" fájlválasztó alapértelmezett helye: a Letöltések mappa.
 private const val DOWNLOADS_URI = "content://com.android.externalstorage.documents/document/primary%3ADownload"
@@ -141,9 +152,14 @@ private fun NetworkToolsApp(hub: AppHub) {
 
     // A hub állapotai - a UI csak megfigyel.
     val logLines by hub.logLines.collectAsState()
-    val feedEntries by hub.feed.collectAsState()
     val logFiles by hub.logFiles.collectAsState()
     val notes by hub.notes.collectAsState()
+    val quickCheck by hub.quickCheck.collectAsState()
+    val quickReport by hub.quickReportForCurrentNetwork.collectAsState()
+    val testJobs by hub.testJobs.collectAsState()
+    val forcedTransport by hub.forcedTransport.collectAsState()
+    val exportHistory by hub.exportHistory.collectAsState()
+    val testGroups = remember { TestCatalog.groups(context) }
 
     // Fiókok: a nyitottság a panel szélességéhez viszonyított, szinkron állapot.
     val scope = rememberCoroutineScope()
@@ -157,7 +173,7 @@ private fun NetworkToolsApp(hub: AppHub) {
     }
 
     var screen by remember { mutableStateOf(Screen.HOME) }
-    var placeholderLabel by remember { mutableStateOf("F1") }
+    var activeTestGroup by rememberSaveable { mutableIntStateOf(1) }
     var skin by remember { mutableStateOf(runCatching { Skin.valueOf(prefs.skin) }.getOrDefault(Skin.SYSTEM)) }
     var webReaderUrl by rememberSaveable { mutableStateOf("") }
 
@@ -168,12 +184,10 @@ private fun NetworkToolsApp(hub: AppHub) {
 
     // A Beállítások megnyitásakor a telefonon lévő naplófájlok listája frissül.
     LaunchedEffect(screen) {
-        if (screen == Screen.SETTINGS) hub.refreshLogFiles()
+        if (screen == Screen.SETTINGS || screen == Screen.SYNC) hub.refreshLogFiles()
     }
 
     // ------------------------------------------------------------------ Fájl mentése (napló / jegyzet)
-    // Rendszer-fájlválasztó, alapból a Letöltések mappával - így a védett Android/data mappát nem kell
-    // fizikailag megkeresni. A választott fajta átmegy a képernyő-elforgatáson is (rememberSaveable).
     var pendingExport by rememberSaveable { mutableStateOf<ExportKind?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -208,7 +222,6 @@ private fun NetworkToolsApp(hub: AppHub) {
     var emailSelected by remember { mutableStateOf(prefs.emailSelected) }
     var emailInput by remember { mutableStateOf("") }
     var emailConfirmedSet by remember { mutableStateOf(prefs.emailConfirmed) }
-    // A kiválasztott címzett: ha nincs (vagy már törölték), a lista első eleme.
     val emailCurrent = if (emailSelected in emailRecipients) emailSelected else emailRecipients.firstOrNull().orEmpty()
     val emailValid = emailCurrent.isNotEmpty() && Patterns.EMAIL_ADDRESS.matcher(emailCurrent).matches()
     val emailInputTrim = emailInput.trim()
@@ -216,7 +229,6 @@ private fun NetworkToolsApp(hub: AppHub) {
         Patterns.EMAIL_ADDRESS.matcher(emailInputTrim).matches() &&
         emailRecipients.none { it.equals(emailInputTrim, ignoreCase = true) }
 
-    // E-mail írása a beállított címzettnek (opcionális csatolmánnyal). A feladó a levelező elsődleges fiókja.
     val composeEmail: (String, String, File?) -> Unit = { subject, body, attachment ->
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "message/rfc822"
@@ -262,8 +274,6 @@ private fun NetworkToolsApp(hub: AppHub) {
     var notifSoundEnabled by remember { mutableStateOf(prefs.notificationSoundEnabled) }
     var notifSoundTitle by remember { mutableStateOf(NotificationHelper.soundTitle(context, prefs)) }
     var notifPermission by remember { mutableStateOf(NotificationHelper.hasPermission(context)) }
-
-    // Az értesítési engedély kérése után a folytatandó művelet: null / "BACKGROUND" / "TEST"
     var afterNotifPermission by remember { mutableStateOf<String?>(null) }
 
     fun applyBackgroundRun(enabled: Boolean) {
@@ -297,7 +307,6 @@ private fun NetworkToolsApp(hub: AppHub) {
             if (next == "BACKGROUND") applyBackgroundRun(true)
             if (next == "TEST") runNotificationTest()
         } else if (next == "BACKGROUND") {
-            // Engedély nélkül is fut a szolgáltatás, csak az állandó értesítés nem látszik.
             applyBackgroundRun(true)
         }
     }
@@ -321,6 +330,17 @@ private fun NetworkToolsApp(hub: AppHub) {
         }
     }
 
+    // ------------------------------------------------------------------ Hálózati beállítások (helyi tükrözés)
+    var bluetoothEnabled by remember { mutableStateOf(prefs.bluetoothEnabled) }
+    var portScanMode by remember { mutableStateOf(prefs.portScanMode) }
+    var customPortList by remember { mutableStateOf(prefs.customPortList) }
+    var scanConcurrency by remember { mutableIntStateOf(prefs.scanConcurrency) }
+    var extraSubnets by remember { mutableStateOf(prefs.extraSubnets) }
+    var externalApiKey by remember { mutableStateOf(prefs.externalApiKey) }
+    var externalMcpServer by remember { mutableStateOf(prefs.externalMcpServer) }
+
+    val hasResults = testJobs.any { it.status != JobStatus.RUNNING } || quickReport.isNotEmpty()
+
     // Vissza gomb: nyitott fiók bezárása, majd vissza a Kezdőlapra.
     BackHandler(enabled = leftDrawer.isOpen || rightDrawer.isOpen) { closeDrawers() }
     BackHandler(enabled = screen != Screen.HOME) { screen = Screen.HOME }
@@ -337,271 +357,370 @@ private fun NetworkToolsApp(hub: AppHub) {
             ) {
                 StarField(modifier = Modifier.fillMaxSize())
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 14.dp, vertical = 20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    AppHeader()
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "v${BuildConfig.VERSION_NAME}  |  $statusText",
-                        color = TextDim,
-                        fontSize = 10.sp,
-                        textAlign = TextAlign.Center,
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Column(
                         modifier = Modifier
+                            .weight(1f)
                             .fillMaxWidth()
-                            .padding(vertical = 5.dp)
-                    )
-                    Spacer(Modifier.height(6.dp))
+                            .padding(horizontal = 14.dp, vertical = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        AppHeader()
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "v${BuildConfig.VERSION_NAME}  |  $statusText",
+                            color = TextDim,
+                            fontSize = 10.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 5.dp)
+                        )
+                        Spacer(Modifier.height(6.dp))
 
-                    when (screen) {
-                        Screen.HOME -> {
-                            FeedStripedPanel(modifier = Modifier.fillMaxWidth().weight(1f), entries = feedEntries)
-                            Spacer(Modifier.height(10.dp))
-                        }
+                        when (screen) {
+                            Screen.HOME -> {
+                                HomeStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    quickCheck = quickCheck,
+                                    quickReport = quickReport,
+                                    logLines = logLines,
+                                    testJobs = testJobs,
+                                )
+                            }
 
-                        Screen.SETTINGS -> {
-                            SettingsStripedPanel(
-                                modifier = Modifier.fillMaxWidth().weight(1f),
-                                ui = SettingsUiState(
-                                    skin = skin,
-                                    backgroundRun = backgroundRun,
-                                    notifSoundEnabled = notifSoundEnabled,
-                                    notifSoundTitle = notifSoundTitle,
-                                    notifPermission = notifPermission,
-                                    logFiles = logFiles,
-                                    emailRecipients = emailRecipients,
-                                    emailCurrent = emailCurrent,
-                                    emailInput = emailInput,
-                                    emailInputValid = emailInputValid,
-                                    emailValid = emailValid,
-                                    emailConfirmed = emailCurrent in emailConfirmedSet,
-                                    crypto = cryptoState,
-                                    keyInput = keyInput,
-                                    keyVisible = keyVisible,
-                                    backup = backupStatus,
-                                    backupSdkOk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R,
-                                ),
-                                act = SettingsActions(
-                                    onSkinChange = {
-                                        skin = it
-                                        prefs.skin = it.name
-                                    },
-                                    onBackgroundRunChange = { enabled ->
-                                        if (enabled && !NotificationHelper.hasPermission(context)) {
-                                            requestNotifPermissionThen("BACKGROUND")
-                                        } else {
-                                            applyBackgroundRun(enabled)
-                                        }
-                                    },
-                                    onOpenBatterySettings = {
-                                        try {
-                                            context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                                        } catch (e: Exception) {
-                                            toast("A beállítás-oldal nem nyitható meg: ${e.message}")
-                                        }
-                                    },
-                                    onNotifSoundEnabledChange = { enabled ->
-                                        notifSoundEnabled = enabled
-                                        prefs.notificationSoundEnabled = enabled
-                                        NotificationHelper.rebuildAlertChannel(context, prefs)
-                                        hub.log("Értesítési hang: " + if (enabled) "BE" else "KI")
-                                    },
-                                    onPickNotifSound = {
-                                        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
-                                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
-                                            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Értesítési hang")
-                                            putExtra(
-                                                RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
-                                                NotificationHelper.soundUri(prefs)
-                                            )
-                                        }
-                                        soundPickerLauncher.launch(intent)
-                                    },
-                                    onNotifTest = {
-                                        if (NotificationHelper.hasPermission(context)) {
-                                            runNotificationTest()
-                                        } else {
-                                            requestNotifPermissionThen("TEST")
-                                        }
-                                    },
-                                    onExport = startExport,
-                                    onEmailFile = startEmail,
-                                    onLogFileDelete = { pendingDeleteLog = it },
-                                    onEmailSelect = {
-                                        emailSelected = it
-                                        prefs.emailSelected = it
-                                    },
-                                    onEmailInputChange = { emailInput = it },
-                                    onEmailAdd = {
-                                        val list = emailRecipients + emailInputTrim
-                                        emailRecipients = list
-                                        prefs.emailRecipients = list
-                                        if (emailSelected !in list || emailSelected.isEmpty()) {
-                                            emailSelected = emailInputTrim
-                                            prefs.emailSelected = emailInputTrim
-                                        }
-                                        emailInput = ""
-                                    },
-                                    onEmailDelete = { address ->
-                                        val list = emailRecipients.filterNot { it == address }
-                                        emailRecipients = list
-                                        prefs.emailRecipients = list
-                                        if (emailSelected == address) {
-                                            emailSelected = list.firstOrNull().orEmpty()
-                                            prefs.emailSelected = emailSelected
-                                        }
-                                        emailConfirmedSet = emailConfirmedSet - address
-                                        prefs.emailConfirmed = emailConfirmedSet
-                                    },
-                                    onEmailTest = {
-                                        composeEmail(
-                                            "Network Tool's tesztlevél",
-                                            "Ez egy tesztlevél a Network Tool's alkalmazásból. Ha megkaptad, az alkalmazásban " +
-                                                "(Beállítások > E-mail beállítások) jelöld meg: MEGÉRKEZETT.",
-                                            null
-                                        )
-                                    },
-                                    onEmailConfirm = {
-                                        emailConfirmedSet = emailConfirmedSet + emailCurrent
-                                        prefs.emailConfirmed = emailConfirmedSet
-                                    },
-                                    onKeyInputChange = { keyInput = it },
-                                    onKeyVisibleChange = { keyVisible = it },
-                                    onKeyAdd = {
-                                        scope.launch {
-                                            hub.crypto.setPassphrase(keyInput.trim()).fold(
-                                                onSuccess = { kid ->
-                                                    toast("Kulcs beállítva (azonosító: $kid).")
-                                                    keyInput = ""
-                                                },
-                                                onFailure = { e -> toast(e.message ?: "A kulcs beállítása sikertelen.") }
-                                            )
-                                        }
-                                    },
-                                    onKeyGenerate = {
-                                        keyInput = hub.crypto.generatePassphrase()
-                                        keyVisible = true
-                                        toast("Kulcs generálva. Másold el, majd nyomd meg: KULCS HOZZÁADÁSA.")
-                                    },
-                                    onKeyCopy = {
-                                        scope.launch {
-                                            val key = keyInput.ifBlank { hub.crypto.revealPassphrase().orEmpty() }
-                                            if (key.isBlank()) {
-                                                toast("Nincs kulcs, amit másolni lehetne.")
+                            Screen.SETTINGS -> {
+                                SettingsStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    ui = SettingsUiState(
+                                        skin = skin,
+                                        backgroundRun = backgroundRun,
+                                        notifSoundEnabled = notifSoundEnabled,
+                                        notifSoundTitle = notifSoundTitle,
+                                        notifPermission = notifPermission,
+                                        logFiles = logFiles,
+                                        emailRecipients = emailRecipients,
+                                        emailCurrent = emailCurrent,
+                                        emailInput = emailInput,
+                                        emailInputValid = emailInputValid,
+                                        emailValid = emailValid,
+                                        emailConfirmed = emailCurrent in emailConfirmedSet,
+                                        crypto = cryptoState,
+                                        keyInput = keyInput,
+                                        keyVisible = keyVisible,
+                                        backup = backupStatus,
+                                        backupSdkOk = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R,
+                                        wifiForced = forcedTransport == ConnectionKind.WIFI,
+                                        mobileForced = forcedTransport == ConnectionKind.CELLULAR,
+                                        bluetoothEnabled = bluetoothEnabled,
+                                        portScanMode = portScanMode,
+                                        customPortList = customPortList,
+                                        scanConcurrency = scanConcurrency,
+                                        extraSubnets = extraSubnets,
+                                        sshLoginEnabled = prefs.sshLoginEnabled,
+                                        externalApiKey = externalApiKey,
+                                        externalMcpServer = externalMcpServer,
+                                    ),
+                                    act = SettingsActions(
+                                        onSkinChange = {
+                                            skin = it
+                                            prefs.skin = it.name
+                                        },
+                                        onBackgroundRunChange = { enabled ->
+                                            if (enabled && !NotificationHelper.hasPermission(context)) {
+                                                requestNotifPermissionThen("BACKGROUND")
                                             } else {
-                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                                clipboard.setPrimaryClip(ClipData.newPlainText("Network Tool's kulcs", key))
-                                                toast("A kulcs a vágólapra másolva - használat után töröld a vágólapot.")
+                                                applyBackgroundRun(enabled)
                                             }
-                                        }
-                                    },
-                                    onKeyDelete = { confirmKeyDelete = true },
-                                    onBackupGrant = {
-                                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-                                            toast("Az adatmentéshez Android 11 vagy újabb kell.")
-                                        } else {
+                                        },
+                                        onOpenBatterySettings = {
                                             try {
-                                                context.startActivity(
-                                                    Intent(
-                                                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                                                        Uri.parse("package:" + context.packageName)
-                                                    )
-                                                )
+                                                context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
                                             } catch (e: Exception) {
-                                                try {
-                                                    context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
-                                                } catch (e2: Exception) {
-                                                    toast("A beállítás-oldal nem nyitható meg: ${e2.message}")
+                                                toast("A beállítás-oldal nem nyitható meg: ${e.message}")
+                                            }
+                                        },
+                                        onNotifSoundEnabledChange = { enabled ->
+                                            notifSoundEnabled = enabled
+                                            prefs.notificationSoundEnabled = enabled
+                                            NotificationHelper.rebuildAlertChannel(context, prefs)
+                                            hub.log("Értesítési hang: " + if (enabled) "BE" else "KI")
+                                        },
+                                        onPickNotifSound = {
+                                            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+                                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                                                putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Értesítési hang")
+                                                putExtra(
+                                                    RingtoneManager.EXTRA_RINGTONE_EXISTING_URI,
+                                                    NotificationHelper.soundUri(prefs)
+                                                )
+                                            }
+                                            soundPickerLauncher.launch(intent)
+                                        },
+                                        onNotifTest = {
+                                            if (NotificationHelper.hasPermission(context)) {
+                                                runNotificationTest()
+                                            } else {
+                                                requestNotifPermissionThen("TEST")
+                                            }
+                                        },
+                                        onExport = startExport,
+                                        onEmailFile = startEmail,
+                                        onLogFileDelete = { pendingDeleteLog = it },
+                                        onEmailSelect = {
+                                            emailSelected = it
+                                            prefs.emailSelected = it
+                                        },
+                                        onEmailInputChange = { emailInput = it },
+                                        onEmailAdd = {
+                                            val list = emailRecipients + emailInputTrim
+                                            emailRecipients = list
+                                            prefs.emailRecipients = list
+                                            if (emailSelected !in list || emailSelected.isEmpty()) {
+                                                emailSelected = emailInputTrim
+                                                prefs.emailSelected = emailInputTrim
+                                            }
+                                            emailInput = ""
+                                        },
+                                        onEmailDelete = { address ->
+                                            val list = emailRecipients.filterNot { it == address }
+                                            emailRecipients = list
+                                            prefs.emailRecipients = list
+                                            if (emailSelected == address) {
+                                                emailSelected = list.firstOrNull().orEmpty()
+                                                prefs.emailSelected = emailSelected
+                                            }
+                                            emailConfirmedSet = emailConfirmedSet - address
+                                            prefs.emailConfirmed = emailConfirmedSet
+                                        },
+                                        onEmailTest = {
+                                            composeEmail(
+                                                "Network Tool's tesztlevél",
+                                                "Ez egy tesztlevél a Network Tool's alkalmazásból. Ha megkaptad, az alkalmazásban " +
+                                                    "(Beállítások > E-mail beállítások) jelöld meg: MEGÉRKEZETT.",
+                                                null
+                                            )
+                                        },
+                                        onEmailConfirm = {
+                                            emailConfirmedSet = emailConfirmedSet + emailCurrent
+                                            prefs.emailConfirmed = emailConfirmedSet
+                                        },
+                                        onKeyInputChange = { keyInput = it },
+                                        onKeyVisibleChange = { keyVisible = it },
+                                        onKeyAdd = {
+                                            scope.launch {
+                                                hub.crypto.setPassphrase(keyInput.trim()).fold(
+                                                    onSuccess = { kid ->
+                                                        toast("Kulcs beállítva (azonosító: $kid).")
+                                                        keyInput = ""
+                                                    },
+                                                    onFailure = { e -> toast(e.message ?: "A kulcs beállítása sikertelen.") }
+                                                )
+                                            }
+                                        },
+                                        onKeyGenerate = {
+                                            keyInput = hub.crypto.generatePassphrase()
+                                            keyVisible = true
+                                            toast("Kulcs generálva. Másold el, majd nyomd meg: KULCS HOZZÁADÁSA.")
+                                        },
+                                        onKeyCopy = {
+                                            scope.launch {
+                                                val key = keyInput.ifBlank { hub.crypto.revealPassphrase().orEmpty() }
+                                                if (key.isBlank()) {
+                                                    toast("Nincs kulcs, amit másolni lehetne.")
+                                                } else {
+                                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                    clipboard.setPrimaryClip(ClipData.newPlainText("Network Tool's kulcs", key))
+                                                    toast("A kulcs a vágólapra másolva - használat után töröld a vágólapot.")
                                                 }
                                             }
-                                        }
-                                    },
-                                    onBackupNow = {
-                                        scope.launch {
-                                            val status = hub.backupNow()
-                                            toast(
-                                                if (status.available) "Mentés kész (${status.lastCopied} fájl frissült)."
-                                                else status.message
-                                            )
-                                        }
-                                    },
+                                        },
+                                        onKeyDelete = { confirmKeyDelete = true },
+                                        onBackupGrant = {
+                                            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                                                toast("Az adatmentéshez Android 11 vagy újabb kell.")
+                                            } else {
+                                                try {
+                                                    context.startActivity(
+                                                        Intent(
+                                                            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                                            Uri.parse("package:" + context.packageName)
+                                                        )
+                                                    )
+                                                } catch (e: Exception) {
+                                                    try {
+                                                        context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                                                    } catch (e2: Exception) {
+                                                        toast("A beállítás-oldal nem nyitható meg: ${e2.message}")
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        onBackupNow = {
+                                            scope.launch {
+                                                val status = hub.backupNow()
+                                                toast(
+                                                    if (status.available) "Mentés kész (${status.lastCopied} fájl frissült)."
+                                                    else status.message
+                                                )
+                                            }
+                                        },
+                                        onWifiForcedChange = { forced ->
+                                            hub.setForcedTransport(if (forced) ConnectionKind.WIFI else null)
+                                        },
+                                        onMobileForcedChange = { forced ->
+                                            hub.setForcedTransport(if (forced) ConnectionKind.CELLULAR else null)
+                                        },
+                                        onBluetoothEnabledChange = {
+                                            bluetoothEnabled = it
+                                            prefs.bluetoothEnabled = it
+                                        },
+                                        onPortScanModeChange = {
+                                            portScanMode = it
+                                            prefs.portScanMode = it
+                                        },
+                                        onCustomPortListChange = {
+                                            customPortList = it
+                                            prefs.customPortList = it
+                                        },
+                                        onScanConcurrencyChange = {
+                                            scanConcurrency = it
+                                            prefs.scanConcurrency = it
+                                        },
+                                        onExtraSubnetsChange = {
+                                            extraSubnets = it
+                                            prefs.extraSubnets = it
+                                        },
+                                        onExternalApiKeyChange = {
+                                            externalApiKey = it
+                                            prefs.externalApiKey = it
+                                        },
+                                        onExternalMcpServerChange = {
+                                            externalMcpServer = it
+                                            prefs.externalMcpServer = it
+                                        },
+                                    )
                                 )
-                            )
-                        }
+                            }
 
-                        Screen.NOTES -> {
-                            NotesStripedPanel(
-                                modifier = Modifier.fillMaxWidth().weight(1f),
-                                notes = notes,
-                                notesFolder = hub.storage.notesDir.absolutePath,
-                                onSave = { id, title, content ->
-                                    scope.launch {
-                                        hub.saveNote(id, title, content)
-                                        toast("Jegyzet mentve.")
-                                    }
-                                },
-                                onDelete = { pendingDeleteNote = it }
-                            )
-                        }
+                            Screen.NOTES -> {
+                                NotesStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    notes = notes,
+                                    notesFolder = hub.storage.notesDir.absolutePath,
+                                    onSave = { id, title, content ->
+                                        scope.launch {
+                                            hub.saveNote(id, title, content)
+                                            toast("Jegyzet mentve.")
+                                        }
+                                    },
+                                    onDelete = { pendingDeleteNote = it }
+                                )
+                            }
 
-                        Screen.LOG -> {
-                            LogStripedPanel(
-                                modifier = Modifier.fillMaxWidth().weight(1f),
-                                logLines = logLines,
-                                onSave = { startExport(ExportKind.LOG) }
-                            )
-                        }
+                            Screen.LOG -> {
+                                LogStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    logLines = logLines,
+                                    onSave = { startExport(ExportKind.LOG) }
+                                )
+                            }
 
-                        Screen.ABOUT -> {
-                            AboutStripedPanel(
-                                modifier = Modifier.fillMaxWidth().weight(1f),
-                                versionName = BuildConfig.VERSION_NAME,
-                                dataFolder = hub.storage.root.absolutePath
-                            )
-                        }
+                            Screen.ABOUT -> {
+                                AboutStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    versionName = BuildConfig.VERSION_NAME,
+                                    dataFolder = hub.storage.root.absolutePath
+                                )
+                            }
 
-                        Screen.QUICK_REPORT -> {
-                            NameStripedPanel(modifier = Modifier.fillMaxWidth().weight(1f), label = "GYORSJELENTÉS")
-                        }
+                            Screen.QUICK_REPORT -> {
+                                QuickReportFullStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    quickCheck = quickCheck,
+                                    quickReport = quickReport,
+                                )
+                            }
 
-                        Screen.PLACEHOLDER -> {
-                            NameStripedPanel(modifier = Modifier.fillMaxWidth().weight(1f), label = placeholderLabel)
-                        }
+                            Screen.TEST_GROUP -> {
+                                val group = testGroups.getOrNull(activeTestGroup - 1)
+                                if (group != null) {
+                                    TestGroupStripedPanel(
+                                        modifier = Modifier.fillMaxWidth().weight(1f),
+                                        group = group,
+                                        jobs = testJobs,
+                                        onRun = { test -> hub.startTest(test.id) },
+                                    )
+                                }
+                            }
 
-                        Screen.WEB_READER -> {
-                            WebReaderStripedPanel(
-                                modifier = Modifier.fillMaxWidth().weight(1f),
-                                startUrl = webReaderUrl,
-                                onUrlChange = { webReaderUrl = it },
-                                onLog = { hub.log(it) }
-                            )
+                            Screen.SYNC -> {
+                                SyncStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    recentLog = logLines.filter {
+                                        it.contains("mentve", true) || it.contains("Mentés", true) ||
+                                            it.contains("Adatmentés", true) || it.contains("napló", true)
+                                    }.takeLast(40),
+                                    history = exportHistory,
+                                    logFiles = logFiles,
+                                    onExportNow = { startExport(ExportKind.LOG) },
+                                    onDeleteLogFile = { pendingDeleteLog = it },
+                                )
+                            }
+
+                            Screen.SPEED_TEST -> {
+                                WorkInProgressStripedPanel(modifier = Modifier.fillMaxWidth().weight(1f), title = "SEBESSÉGTESZT")
+                            }
+
+                            Screen.EXTERNAL_SERVICES -> {
+                                WorkInProgressStripedPanel(modifier = Modifier.fillMaxWidth().weight(1f), title = "KÜLSŐ SZOLGÁLTATÁSOK")
+                            }
+
+                            Screen.RESULTS -> {
+                                LogStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    logLines = testJobs.filter { it.status != JobStatus.RUNNING }
+                                        .sortedByDescending { it.finishedMs ?: it.startedMs }
+                                        .flatMap { listOf("=== ${it.label} (${it.shortCode}) ===") + it.lines },
+                                    onSave = { startExport(ExportKind.LOG) }
+                                )
+                            }
+
+                            Screen.WEB_READER -> {
+                                WebReaderStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    startUrl = webReaderUrl,
+                                    onUrlChange = { webReaderUrl = it },
+                                    onLog = { hub.log(it) }
+                                )
+                            }
                         }
                     }
 
-                    // A Kezdőlapon kívül lent középen a házikó-gomb van: a panel alatt fenntartott
-                    // hely, hogy ne takarja el a panel alsó elemeit/gombjait.
-                    if (screen != Screen.HOME) {
-                        Spacer(Modifier.height(64.dp))
-                    }
-                }
-
-                // Amíg nem a Kezdőlapon vagyunk: házikó (benne a hálózat-ikon) lent középen - ez visz a Kezdőlapra.
-                if (screen != Screen.HOME) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 18.dp)
-                            .size(64.dp)
-                            .clickable { screen = Screen.HOME },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        HomeButtonIcon(modifier = Modifier.fillMaxSize())
-                    }
+                    BottomBar(
+                        isHome = screen == Screen.HOME,
+                        hasResults = hasResults,
+                        forcedTransport = forcedTransport,
+                        wifiActive = quickCheck.connections.any { it.kind == ConnectionKind.WIFI },
+                        mobileActive = quickCheck.connections.any { it.kind == ConnectionKind.CELLULAR },
+                        onToggleWifi = {
+                            hub.setForcedTransport(if (forcedTransport == ConnectionKind.WIFI) null else ConnectionKind.WIFI)
+                        },
+                        onToggleMobile = {
+                            hub.setForcedTransport(if (forcedTransport == ConnectionKind.CELLULAR) null else ConnectionKind.CELLULAR)
+                        },
+                        onOpenWifiSettings = { hub.openSystemNetworkToggle(ConnectionKind.WIFI) },
+                        onOpenMobileSettings = { hub.openSystemNetworkToggle(ConnectionKind.CELLULAR) },
+                        onCenterClick = {
+                            screen = if (screen == Screen.HOME) {
+                                if (hasResults) Screen.RESULTS else Screen.HOME
+                            } else {
+                                Screen.HOME
+                            }
+                        },
+                    )
                 }
 
                 // Sötétítő: nyitott fióknál a fiókon kívülre koppintva bezár.
@@ -617,13 +736,9 @@ private fun NetworkToolsApp(hub: AppHub) {
                     modifier = Modifier.align(Alignment.TopStart)
                 ) {
                     LeftDrawerPanel(
-                        onNotes = {
-                            screen = Screen.NOTES
-                            leftDrawer.close()
-                        },
                         onFunction = { number ->
-                            placeholderLabel = "F$number"
-                            screen = Screen.PLACEHOLDER
+                            activeTestGroup = number
+                            screen = Screen.TEST_GROUP
                             leftDrawer.close()
                         }
                     )
@@ -639,12 +754,28 @@ private fun NetworkToolsApp(hub: AppHub) {
                     modifier = Modifier.align(Alignment.TopEnd)
                 ) {
                     RightDrawerPanel(
+                        onNotes = {
+                            screen = Screen.NOTES
+                            rightDrawer.close()
+                        },
                         onQuickAccess = {
                             screen = Screen.QUICK_REPORT
                             rightDrawer.close()
                         },
                         onLogOpen = {
                             screen = Screen.LOG
+                            rightDrawer.close()
+                        },
+                        onSync = {
+                            screen = Screen.SYNC
+                            rightDrawer.close()
+                        },
+                        onSpeedTest = {
+                            screen = Screen.SPEED_TEST
+                            rightDrawer.close()
+                        },
+                        onExternalServices = {
+                            screen = Screen.EXTERNAL_SERVICES
                             rightDrawer.close()
                         },
                         onWebReader = {

@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "groups": [
+    {
+      "id": "F1",
+      "name": "Halozat es eszkozok",
+      "tests": [
+        { "id": "adapter_info", "name": "Adapterek es IP-konfiguracio", "shortCode": "ADP" },
+        { "id": "gateway_dns", "name": "Atjaro es DNS-szerverek", "shortCode": "GW" },
+        { "id": "public_ip", "name": "Publikus IP cim", "shortCode": "WANIP" },
+        { "id": "cgnat_test", "name": "CGNAT-teszt", "shortCode": "CGNAT" },
+        { "id": "ipv6_status", "name": "IPv6-allapot", "shortCode": "IPV6" },
+        { "id": "device_info", "name": "Eszkoz- es rendszerinfo", "shortCode": "DEV" },
+        { "id": "ping_sweep", "name": "Ping-sweep (elo eszkozok)", "shortCode": "SWEEP" },
+        { "id": "hostname_lookup", "name": "Hostname-feloldas", "shortCode": "PTR" },
+        { "id": "snmp_probe", "name": "SNMP-alapu eszkozfelismeres", "shortCode": "SNMP" },
+        { "id": "dual_phase", "name": "Vezetekes / mobil osszehasonlitas", "shortCode": "DUAL" }
+      ]
+    },
+    {
+      "id": "F2",
+      "name": "Portok es szolgaltatasok",
+      "tests": [
+        { "id": "port_scan", "name": "Port-scan", "shortCode": "PORT" },
+        { "id": "http_title", "name": "HTTP web-UI cim", "shortCode": "HTTP" },
+        { "id": "ssh_banner", "name": "SSH-banner", "shortCode": "SSH" },
+        { "id": "miner_api", "name": "Miner API proba", "shortCode": "MINER" }
+      ]
+    },
+    {
+      "id": "F3",
+      "name": "Utvonal es kapcsolat",
+      "tests": [
+        { "id": "wan_test", "name": "Gateway / WAN elerhetoseg", "shortCode": "WAN" },
+        { "id": "dns_timing", "name": "DNS-feloldasi sebesseg", "shortCode": "DNST" }
+      ]
+    }
+  ],
+  "arp_spike": { "id": "arp_spike", "name": "ARP-tabla olvashatosagi teszt", "shortCode": "ARP" }
+}

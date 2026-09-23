@@ -1,4 +1,4 @@
-// Verzio: v0.4.1 - 2026-09-21
+// Verzio: v0.5.0 - 2026-09-22
 package hu.lordathis.networktools.ui
 
 import androidx.compose.foundation.border
@@ -69,6 +69,18 @@ internal data class SettingsUiState(
     val keyVisible: Boolean,
     val backup: BackupStatus,
     val backupSdkOk: Boolean,
+    // --- Hálózati beállítások ---
+    val wifiForced: Boolean,
+    val mobileForced: Boolean,
+    val bluetoothEnabled: Boolean,
+    val portScanMode: String,
+    val customPortList: String,
+    val scanConcurrency: Int,
+    val extraSubnets: String,
+    val sshLoginEnabled: Boolean,
+    // --- Külső szolgáltatók (AI API / MCP) ---
+    val externalApiKey: String,
+    val externalMcpServer: String,
 )
 
 /** A Beállítások panel eseményei. */
@@ -96,6 +108,18 @@ internal data class SettingsActions(
     val onKeyDelete: () -> Unit,
     val onBackupGrant: () -> Unit,
     val onBackupNow: () -> Unit,
+    // --- Hálózati beállítások ---
+    val onWifiForcedChange: (Boolean) -> Unit,
+    val onMobileForcedChange: (Boolean) -> Unit,
+    val onBluetoothEnabledChange: (Boolean) -> Unit,
+    val onPortScanModeChange: (String) -> Unit,
+    val onCustomPortListChange: (String) -> Unit,
+    val onScanConcurrencyChange: (Int) -> Unit,
+    val onExtraSubnetsChange: (String) -> Unit,
+    // onSshLoginEnabledChange NINCS - a csúszka szándékosan inaktív, amíg a funkció el nem készül.
+    // --- Külső szolgáltatók ---
+    val onExternalApiKeyChange: (String) -> Unit,
+    val onExternalMcpServerChange: (String) -> Unit,
 )
 
 /** Keretes beállítás-szakasz: felirat + tartalom, belső kerettel. */
@@ -168,7 +192,7 @@ private fun SaveRow(label: String, onSave: () -> Unit, onEmail: () -> Unit) {
 }
 
 @Composable
-private fun StatusChip(text: String, color: Color) {
+internal fun StatusChip(text: String, color: Color) {
     Text(
         text,
         color = color,
@@ -351,8 +375,107 @@ internal fun SettingsStripedPanel(modifier: Modifier, ui: SettingsUiState, act: 
                 }
             }
 
-            // ---------------------------------------------------------------- Hálózati (üres doboz: a funkciói később jönnek)
+            // ---------------------------------------------------------------- Hálózati
             SettingsSection("HÁLÓZATI BEÁLLÍTÁSOK") {
+                Text(
+                    "A WiFi/mobilnet kapcsoló ugyanaz, mint a főképernyő házikója melletti ikonok - itt is " +
+                        "elérhető, hogy egy teszt csak egy hálózaton fusson.",
+                    color = TextDim,
+                    fontSize = 9.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                CheckRow("Forgalom kényszerítése WiFi-re", ui.wifiForced, act.onWifiForcedChange)
+                CheckRow("Forgalom kényszerítése mobilnetre", ui.mobileForced, act.onMobileForcedChange)
+                CheckRow("Bluetooth", ui.bluetoothEnabled, act.onBluetoothEnabledChange)
+                Text(
+                    "A Bluetooth-kapcsoló egyelőre csak jelzi az állapotot - a hozzá tartozó önálló panel " +
+                        "egy következő körben készül.",
+                    color = TextDim,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+
+                Spacer(Modifier.height(10.dp))
+                Text("PORT-SCAN", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Spacer(Modifier.height(4.dp))
+                ChoiceRow("Csak a listán szereplő portok", ui.portScanMode == "LIST") { act.onPortScanModeChange("LIST") }
+                ChoiceRow("Összes port (1-65535, lassabb)", ui.portScanMode == "ALL") { act.onPortScanModeChange("ALL") }
+                if (ui.portScanMode == "LIST") {
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = ui.customPortList,
+                        onValueChange = act.onCustomPortListChange,
+                        label = { Text("Egyedi portlista (vesszővel, üres = alapértelmezett)") },
+                        singleLine = true,
+                        colors = appFieldColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+                Text("VIZSGÁLAT PARAMÉTEREI", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Spacer(Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = ui.scanConcurrency.toString(),
+                    onValueChange = { text -> text.toIntOrNull()?.let(act.onScanConcurrencyChange) },
+                    label = { Text("Egyidejű vizsgálatok száma (throttle)") },
+                    singleLine = true,
+                    colors = appFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = ui.extraSubnets,
+                    onValueChange = act.onExtraSubnetsChange,
+                    label = { Text("Extra alhálók (pl. 192.168.5.0/24), soronként") },
+                    colors = appFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                Spacer(Modifier.height(10.dp))
+                Text("TÁVOLI BEJELENTKEZÉS", color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = ui.sshLoginEnabled, onCheckedChange = null, enabled = false)
+                    Text("SSH-bejelentkezés engedélyezése", color = TextDim, fontSize = 12.sp)
+                }
+                Text(
+                    "Egyelőre inaktív: a mostani tesztek csak SSH-portot/bannert olvasnak (nem jelentkeznek be). " +
+                        "A tényleges bejelentkezés a hitelesítő-trezorral (mentett jelszavak) együtt készül el.",
+                    color = TextDim,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+
+            // ---------------------------------------------------------------- Külső szolgáltatók
+            SettingsSection("KÜLSŐ SZOLGÁLTATÁSOK (AI API / MCP)") {
+                Text(
+                    "Egyelőre csak a beállítás helye - a funkció (AI-alapú felismerés, MCP-kapcsolat) egy " +
+                        "következő körben készül el. A jobb oldali fiók \"Külső szolgáltatások\" gombja egy " +
+                        "\"kidolgozás alatt\" panelt nyit.",
+                    color = TextDim,
+                    fontSize = 9.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = ui.externalApiKey,
+                    onValueChange = act.onExternalApiKeyChange,
+                    label = { Text("API-kulcs") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    colors = appFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = ui.externalMcpServer,
+                    onValueChange = act.onExternalMcpServerChange,
+                    label = { Text("MCP-szerver címe") },
+                    singleLine = true,
+                    colors = appFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             // ---------------------------------------------------------------- E-mail

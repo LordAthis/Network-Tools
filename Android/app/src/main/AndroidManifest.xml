@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Verzio: v0.4.0 - 2026-09-21 -->
+<!-- Verzio: v0.5.0 - 2026-09-22 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Webolvasó (beépített böngésző) -->
+    <!-- Webolvasó (beépített böngésző), hálózati tesztek -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+
+    <!-- A jelenlegi WiFi SSID/BSSID lekérdezéséhez Android ezt megköveteli (a rendszer szerint a
+         WiFi-adatokból helyre lehetne következtetni) - CSAK a hálózat-azonosításhoz (profilok) kell,
+         helyadatot az app nem gyűjt és nem küld sehova. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!-- Háttérben futás (előtér-szolgáltatás) és értesítések -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
