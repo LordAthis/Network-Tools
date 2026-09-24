@@ -1,4 +1,4 @@
-// Verzio: v0.5.0 - 2026-09-22
+// Verzio: v0.5.1 - 2026-09-24
 package hu.lordathis.networktools.engine
 
 import hu.lordathis.networktools.network.ArpProbe
@@ -47,6 +47,8 @@ class TestEngine(
     private val currentNetworkKey: () -> String,
     private val currentNetworkLogName: () -> String,
     private val onAppLog: (String) -> Unit,
+    /** Minden rögzített összefoglaló után hívódik - az AppHub ezzel frissíti AZONNAL a Gyorsjelentést. */
+    private val onSummaryRecorded: () -> Unit = {},
 ) {
     private val jobsState = MutableStateFlow<List<TestJob>>(emptyList())
     val jobs: StateFlow<List<TestJob>> = jobsState.asStateFlow()
@@ -97,6 +99,7 @@ class TestEngine(
         quickReportStore.record(
             TestRunSummary(testId, label, shortCode, currentNetworkKey(), now, headline, logFileName)
         )
+        onSummaryRecorded()
         onAppLog("$label ($shortCode) befejeződött: $headline")
     }
 

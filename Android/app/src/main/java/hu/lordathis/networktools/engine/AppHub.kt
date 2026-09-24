@@ -1,4 +1,4 @@
-// Verzio: v0.6.2 - 2026-09-24
+// Verzio: v0.6.3 - 2026-09-24
 package hu.lordathis.networktools.engine
 
 import android.app.Application
@@ -156,6 +156,7 @@ class AppHub(application: Application) : AndroidViewModel(application) {
         currentNetworkKey = { quickCheckState.value.networkKey },
         currentNetworkLogName = { quickCheckState.value.networkLogName },
         onAppLog = { log(it) },
+        onSummaryRecorded = { refreshQuickReport() },
     )
     val testJobs: StateFlow<List<TestJob>> = testEngine.jobs
 
@@ -283,6 +284,11 @@ class AppHub(application: Application) : AndroidViewModel(application) {
                     testEngine.start(def.id, def.name, def.shortCode)
                     delay(250) // enyhe ütemezés, hogy ne induljon mind egyszerre
                 }
+                // A kör végén egy frissítési ciklus: a Gyors ellenőrzés (kapcsolat, internet) is az új
+                // állapotot mutassa, ne csak háttérbe tétel + visszahozás után. Külön korutinban, hogy az
+                // időzítő ciklust ne tartsa fel.
+                val ids = tests.map { it.id }
+                testScope.launch { refreshAfterAutoRound(ids) }
             }
             // Várakozás a következő esedékességig - DE a beállítás változása (BE/KI, új köz) azonnal felébreszti,
             // igy nem kell a régi (pl. 15 perces) várakozás végét kivárni.
@@ -294,6 +300,21 @@ class AppHub(application: Application) : AndroidViewModel(application) {
             }
             if (signal == AutoWake.RUN_NOW) runNow = true
         }
+    }
+
+    /** Megvárja, amíg az adott kör tesztjei lefutnak (max. 3 perc), majd frissíti a kezdőlap kártyáit. */
+    private suspend fun refreshAfterAutoRound(testIds: List<String>) {
+        val deadline = System.currentTimeMillis() + 180_000L
+        while (testIds.any { testEngine.isRunning(it) } && System.currentTimeMillis() < deadline) {
+            delay(500)
+        }
+        runQuickCheck(deepSweep = false)
+        refreshQuickReport()
+    }
+
+    /** A Gyorsjelentés újratöltése a JELENLEGI hálózatra - minden teszt-befejezéskor hívódik. */
+    private fun refreshQuickReport() {
+        quickReportState.value = quickReportStore.forNetwork(quickCheckState.value.networkKey)
     }
 
     private fun effectiveAutoIntervalMinutes(): Int {
