@@ -1,4 +1,4 @@
-// Verzio: v0.6.0 - 2026-09-24
+// Verzio: v0.6.1 - 2026-09-24
 package hu.lordathis.networktools.ui
 
 import androidx.compose.animation.core.animate
@@ -329,7 +329,6 @@ internal fun DrawerScrim(left: EdgeDrawerState, right: EdgeDrawerState, onDismis
 // Fiók-tartalmak
 // ---------------------------------------------------------------------------
 
-@Composable
 @Composable
 internal fun LeftDrawerPanel(
     groups: List<TestGroup>,

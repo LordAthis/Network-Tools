@@ -1,4 +1,4 @@
-// Verzio: v0.6.0 - 2026-09-24
+// Verzio: v0.6.1 - 2026-09-24
 package hu.lordathis.networktools.engine
 
 import android.app.Application
@@ -38,6 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -256,7 +257,8 @@ class AppHub(application: Application) : AndroidViewModel(application) {
      * ez a korlát a mostani készlettel nem szokott érvénybe lépni - de jövőbeli, lassabb auto-tesztnél igen.
      */
     private suspend fun runAutoTestsLoop() {
-        while (isActive) {
+        // suspend fuggvenyben nincs CoroutineScope receiver, ezert a hivo korutin kontextusat kerdezzuk
+        while (currentCoroutineContext().isActive) {
             if (prefs.autoTestsEnabled) {
                 val tests = TestCatalog.autoTests(appContext)
                 for (def in tests) {
