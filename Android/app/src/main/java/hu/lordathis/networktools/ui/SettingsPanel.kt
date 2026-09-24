@@ -1,4 +1,4 @@
-// Verzio: v0.6.0 - 2026-09-24
+// Verzio: v0.6.1 - 2026-09-24
 package hu.lordathis.networktools.ui
 
 import androidx.compose.foundation.border
@@ -28,6 +28,10 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -465,14 +469,45 @@ internal fun SettingsStripedPanel(modifier: Modifier, ui: SettingsUiState, act: 
                 Spacer(Modifier.height(6.dp))
                 CheckRow("Automatikus futtatás bekapcsolva", ui.autoTestsEnabled, act.onAutoTestsEnabledChange)
                 Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = ui.autoTestsIntervalMinutes.toString(),
-                    onValueChange = { text -> text.toIntOrNull()?.let(act.onAutoTestsIntervalChange) },
-                    label = { Text("Ismétlés (5-120 perc)") },
-                    singleLine = true,
-                    colors = appFieldColors(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                // Gépelés közben NEM mentünk (korábban minden leütés azonnal 5-120 közé vágta az értéket,
+                // pl. a "15" törlésekor "1" -> "5" lett). Mentés csak a MENTÉS gombbal, visszajelzéssel.
+                var intervalText by remember(ui.autoTestsIntervalMinutes) {
+                    mutableStateOf(ui.autoTestsIntervalMinutes.toString())
+                }
+                var savedNote by remember { mutableStateOf("") }
+                val parsed = intervalText.trim().toIntOrNull()
+                val valid = parsed != null && parsed in 5..120
+                val changed = valid && parsed != ui.autoTestsIntervalMinutes
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = intervalText,
+                        onValueChange = { text ->
+                            intervalText = text.filter { it.isDigit() }.take(3)
+                            savedNote = ""
+                        },
+                        label = { Text("Ismétlés (5-120 perc)") },
+                        singleLine = true,
+                        isError = intervalText.isNotEmpty() && !valid,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = appFieldColors(),
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    PillButton("MENTÉS", enabled = changed, filled = true, onClick = {
+                        if (parsed != null) {
+                            act.onAutoTestsIntervalChange(parsed)
+                            savedNote = "✓ Mentve: $parsed perc - az időzítő már ezzel számol."
+                        }
+                    })
+                }
+                when {
+                    intervalText.isNotEmpty() && !valid ->
+                        Text("5 és 120 perc közötti érték adható meg.", color = WarnColor, fontSize = 9.sp)
+                    savedNote.isNotEmpty() ->
+                        Text(savedNote, color = Accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    changed ->
+                        Text("Nincs mentve - nyomd meg a MENTÉS gombot.", color = WarnColor, fontSize = 9.sp)
+                }
                 Text(
                     "Ha az összes automatikus teszt együttes ideje ennél tovább tartana, a köz automatikusan " +
                         "az összidő + 5 percre nő - a jelenlegi tesztekkel ez a gyakorlatban nem szokott előfordulni.",

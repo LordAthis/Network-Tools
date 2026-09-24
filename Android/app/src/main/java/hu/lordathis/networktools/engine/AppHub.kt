@@ -1,4 +1,4 @@
-// Verzio: v0.6.1 - 2026-09-24
+// Verzio: v0.6.2 - 2026-09-24
 package hu.lordathis.networktools.engine
 
 import android.app.Application
@@ -38,6 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,6 +50,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -161,6 +163,11 @@ class AppHub(application: Application) : AndroidViewModel(application) {
     /** Az automatikus tesztek legutóbbi lefutása - a jobb fiók Gyorsjelentés ikonjának "friss" jelzéséhez. */
     val lastAutoRunMs: StateFlow<Long> = lastAutoRunState.asStateFlow()
 
+    /** Az auto-teszt időzítő felébresztése (beállítás-változáskor). CONFLATED: csak a legutolsó jelzés számít. */
+    private enum class AutoWake { RUN_NOW, RESCHEDULE }
+    private val autoTestsWake = Channel<AutoWake>(Channel.CONFLATED)
+    private val HHMM: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
     // --- Mentés-előzmény (a Sync/Mentés panel alsó listája) ---------------------------------------------
     private val exportHistoryStore = ExportHistoryStore(File(storage.root, "export_history.csv"))
     private val exportHistoryState = MutableStateFlow<List<ExportHistoryEntry>>(emptyList())
@@ -257,22 +264,60 @@ class AppHub(application: Application) : AndroidViewModel(application) {
      * ez a korlát a mostani készlettel nem szokott érvénybe lépni - de jövőbeli, lassabb auto-tesztnél igen.
      */
     private suspend fun runAutoTestsLoop() {
-        // suspend fuggvenyben nincs CoroutineScope receiver, ezert a hivo korutin kontextusat kerdezzuk
+        // Az elso kor induláskor mindig lefut (ha be van kapcsolva).
+        var runNow = true
         while (currentCoroutineContext().isActive) {
-            if (prefs.autoTestsEnabled) {
+            val enabled = prefs.autoTestsEnabled
+            val intervalMs = effectiveAutoIntervalMinutes() * 60_000L
+            val now = System.currentTimeMillis()
+            val last = prefs.lastAutoTestsRunMs
+            val due = runNow || last <= 0L || now - last >= intervalMs
+            runNow = false
+            if (enabled && due) {
                 val tests = TestCatalog.autoTests(appContext)
+                prefs.lastAutoTestsRunMs = System.currentTimeMillis()
+                lastAutoRunState.value = prefs.lastAutoTestsRunMs
+                val next = LocalDateTime.now().plusSeconds(intervalMs / 1000).format(HHMM)
+                log("Automatikus tesztkör indul (${tests.size} teszt, köz: ${effectiveAutoIntervalMinutes()} perc, következő: $next).")
                 for (def in tests) {
                     testEngine.start(def.id, def.name, def.shortCode)
                     delay(250) // enyhe ütemezés, hogy ne induljon mind egyszerre
                 }
-                prefs.lastAutoTestsRunMs = System.currentTimeMillis()
-                lastAutoRunState.value = prefs.lastAutoTestsRunMs
             }
-            val estimatedTotalSeconds = TestCatalog.autoTests(appContext).size * 3 // óvatos, felülbecsült egyedi idő
-            val safetyMinutes = (estimatedTotalSeconds / 60) + 5
-            val effectiveMinutes = maxOf(prefs.autoTestsIntervalMinutes, safetyMinutes)
-            delay(effectiveMinutes * 60_000L)
+            // Várakozás a következő esedékességig - DE a beállítás változása (BE/KI, új köz) azonnal felébreszti,
+            // igy nem kell a régi (pl. 15 perces) várakozás végét kivárni.
+            val signal = if (!prefs.autoTestsEnabled) {
+                autoTestsWake.receive() // kikapcsolva: csak beállítás-változásra ébred
+            } else {
+                val remaining = prefs.lastAutoTestsRunMs + intervalMs - System.currentTimeMillis()
+                withTimeoutOrNull(remaining.coerceAtLeast(1_000L)) { autoTestsWake.receive() }
+            }
+            if (signal == AutoWake.RUN_NOW) runNow = true
         }
+    }
+
+    private fun effectiveAutoIntervalMinutes(): Int {
+        val estimatedTotalSeconds = TestCatalog.autoTests(appContext).size * 3 // óvatos, felülbecsült egyedi idő
+        val safetyMinutes = (estimatedTotalSeconds / 60) + 5
+        return maxOf(prefs.autoTestsIntervalMinutes, safetyMinutes)
+    }
+
+    /** Automatikus tesztek BE/KI - a UI hívja. Bekapcsoláskor azonnal lefut egy kör. */
+    fun setAutoTestsEnabled(enabled: Boolean) {
+        prefs.autoTestsEnabled = enabled
+        log("Automatikus tesztek: " + if (enabled) "BE (egy kör most indul)" else "KI")
+        autoTestsWake.trySend(if (enabled) AutoWake.RUN_NOW else AutoWake.RESCHEDULE)
+    }
+
+    /** Új ismétlési köz mentése - a UI MENTÉS gombja hívja. Az időzítő azonnal az új közzel számol. */
+    fun setAutoTestsInterval(minutes: Int): Int {
+        val value = minutes.coerceIn(5, 120)
+        prefs.autoTestsIntervalMinutes = value
+        val effective = effectiveAutoIntervalMinutes()
+        val extra = if (effective != value) " (a tesztek hossza miatt ténylegesen $effective perc)" else ""
+        log("Automatikus tesztek ismétlési köze mentve: $value perc$extra.")
+        autoTestsWake.trySend(AutoWake.RESCHEDULE)
+        return value
     }
 
     /** Egy NetworkCallback, ami a kapcsolat VÁLTOZÁSAKOR (nem időzítve!) újrafuttatja a gyors ellenőrzést. */

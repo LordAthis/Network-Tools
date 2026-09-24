@@ -1,4 +1,4 @@
-// Verzio: v0.6.0 - 2026-09-24
+// Verzio: v0.6.1 - 2026-09-24
 package hu.lordathis.networktools
 
 import android.Manifest
@@ -598,12 +598,10 @@ private fun NetworkToolsApp(hub: AppHub) {
                                         },
                                         onAutoTestsEnabledChange = {
                                             autoTestsEnabled = it
-                                            prefs.autoTestsEnabled = it
-                                            hub.log("Automatikus tesztek: " + if (it) "BE" else "KI")
+                                            hub.setAutoTestsEnabled(it)
                                         },
                                         onAutoTestsIntervalChange = {
-                                            autoTestsIntervalMinutes = it.coerceIn(5, 120)
-                                            prefs.autoTestsIntervalMinutes = autoTestsIntervalMinutes
+                                            autoTestsIntervalMinutes = hub.setAutoTestsInterval(it)
                                         },
                                         onExternalApiKeyChange = {
                                             externalApiKey = it

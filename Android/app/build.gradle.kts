@@ -1,4 +1,4 @@
-// Verzio: v0.4.0 - 2026-09-21
+// Verzio: v0.4.1 - 2026-09-24
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -8,7 +8,7 @@ plugins {
 // EGYETLEN kozponti verzio-forras (ebbol lesz a BuildConfig.VERSION_NAME is, azt olvassa a
 // fejlec/Nevjegy/naplok). A versionCode a verziobol szamolodik (0.1.5555 -> 15555), igy minden
 // magasabb verzio automatikusan frissiteskent telepitheto a regire (in-place update).
-val appVersionName = "0.1.0"
+val appVersionName = "0.1.8"
 val appVersionParts = appVersionName.split(".").map { it.toInt() }
 val appVersionCode = appVersionParts[0] * 100_000_000 + appVersionParts[1] * 10_000 + appVersionParts[2]
 
