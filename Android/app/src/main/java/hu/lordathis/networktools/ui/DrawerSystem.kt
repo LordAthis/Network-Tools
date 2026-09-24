@@ -1,9 +1,11 @@
-// Verzio: v0.5.0 - 2026-09-22
+// Verzio: v0.6.0 - 2026-09-24
 package hu.lordathis.networktools.ui
 
 import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -30,6 +32,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
@@ -57,6 +60,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import hu.lordathis.networktools.engine.JobStatus
+import hu.lordathis.networktools.engine.TestDef
+import hu.lordathis.networktools.engine.TestGroup
+import hu.lordathis.networktools.engine.TestJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -86,16 +93,20 @@ import kotlin.math.roundToInt
 // ---------------------------------------------------------------------------
 
 internal const val DRAWER_PANEL_DP = 46
+/** A bal oldali (teszt-lista) fiók szélesebb, hogy elférjen benne a teszt neve + a FUTTATÁS gomb. */
+internal const val LEFT_DRAWER_PANEL_DP = 280
 
-// A húzás-figyelő sávja (a főképernyő dobozához képest, a 2026-09-19-i jelölések alapján).
+// A húzás-figyelő sávja (a főképernyő dobozához képest) - lásd HANDLE_*_WEIGHT lent: a két sávnak
+// szinkronban kell maradnia, különben a látható fogantyú-sáv és a húzással nyitható sáv szétcsúszik.
 private const val ZONE_WIDTH = 0.26f
-private const val ZONE_TOP = 0.04f
-private const val ZONE_BOTTOM = 0.70f
+private const val ZONE_TOP = 0.05f
+private const val ZONE_BOTTOM = 0.90f
 
-// A fogantyú (hosszú csík) függőleges helye: fent 9%, magassága 61%, alul a maradék 30%.
-private const val HANDLE_TOP_WEIGHT = 0.09f
-private const val HANDLE_STRIP_WEIGHT = 0.61f
-private const val HANDLE_BOTTOM_WEIGHT = 0.30f
+// A fogantyú (hosszú csík) függőleges helye: fent 5%, magassága 85% (hogy a bal oldali fiókok - benne
+// a teszt-listákkal - szükség eseten majdnem a teljes magasságot kihasználhassák), alul a maradék 10%.
+private const val HANDLE_TOP_WEIGHT = 0.05f
+private const val HANDLE_STRIP_WEIGHT = 0.85f
+private const val HANDLE_BOTTOM_WEIGHT = 0.10f
 private const val HANDLE_BOX_DP = 16
 private const val HANDLE_VISUAL_DP = 10
 
@@ -235,22 +246,22 @@ internal fun EdgeDrawer(
     state: EdgeDrawerState,
     onHandleTap: () -> Unit,
     modifier: Modifier = Modifier,
+    panelWidth: androidx.compose.ui.unit.Dp = DRAWER_PANEL_DP.dp,
     panel: @Composable () -> Unit,
 ) {
     Row(modifier = modifier.fillMaxHeight()) {
         if (!alignEnd) {
             EdgeHandle(alignEnd = false, onTap = onHandleTap)
-            PanelSlot(alignEnd = false, state = state, panel = panel)
+            PanelSlot(alignEnd = false, state = state, panelWidth = panelWidth, panel = panel)
         } else {
-            PanelSlot(alignEnd = true, state = state, panel = panel)
+            PanelSlot(alignEnd = true, state = state, panelWidth = panelWidth, panel = panel)
             EdgeHandle(alignEnd = true, onTap = onHandleTap)
         }
     }
 }
 
 @Composable
-private fun PanelSlot(alignEnd: Boolean, state: EdgeDrawerState, panel: @Composable () -> Unit) {
-    val panelWidth = DRAWER_PANEL_DP.dp
+private fun PanelSlot(alignEnd: Boolean, state: EdgeDrawerState, panelWidth: androidx.compose.ui.unit.Dp, panel: @Composable () -> Unit) {
     Column(modifier = Modifier.fillMaxHeight().width(panelWidth)) {
         Spacer(Modifier.weight(HANDLE_TOP_WEIGHT))
         Box(
@@ -319,25 +330,85 @@ internal fun DrawerScrim(left: EdgeDrawerState, right: EdgeDrawerState, onDismis
 // ---------------------------------------------------------------------------
 
 @Composable
+@Composable
 internal fun LeftDrawerPanel(
-    onFunction: (Int) -> Unit,
+    groups: List<TestGroup>,
+    jobs: List<TestJob>,
+    onRun: (TestDef) -> Unit,
 ) {
     val shape = RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp)
     Column(
         modifier = Modifier
-            .width(DRAWER_PANEL_DP.dp)
+            .width(LEFT_DRAWER_PANEL_DP.dp)
             .wrapContentHeight()
             .background(DrawerBg, shape)
             .border(1.dp, Accent.copy(alpha = 0.3f), shape)
-            .padding(vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .padding(vertical = 10.dp, horizontal = 10.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         // A Kezdőlapra a lap alján lévő házikó-gomb visz vissza, ezért itt nincs Kezdőlap gomb.
-        // A Jegyzet a jobb oldali fiókba került; itt csak a hálózati teszt-csoportok (F1-F3) vannak.
-        RailTextButton(label = "F1", contentDescription = "F1 - Hálózat és eszközök", onClick = { onFunction(1) })
-        RailTextButton(label = "F2", contentDescription = "F2 - Portok és szolgáltatások", onClick = { onFunction(2) })
-        RailTextButton(label = "F3", contentDescription = "F3 - Útvonal és kapcsolat", onClick = { onFunction(3) })
+        // A Jegyzet a jobb oldali fiókba került. Az egyszerű/gyors tesztek automatikusan futnak
+        // (lásd Beállítások > Hálózati beállítások) - itt csak a manuális, hosszabb tesztek vannak,
+        // csoportosítva, közvetlenül FUTTATÁS gombbal (nincs külön képernyőre navigálás).
+        for (group in groups) {
+            Text(
+                group.name.uppercase(),
+                color = Accent,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp),
+            )
+            for (test in group.tests) {
+                val latestJob = jobs.filter { it.testId == test.id }.maxByOrNull { it.startedMs }
+                DrawerTestRow(test = test, job = latestJob, onRun = { onRun(test) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrawerTestRow(
+    test: TestDef,
+    job: TestJob?,
+    onRun: () -> Unit,
+) {
+    val running = job?.status == JobStatus.RUNNING
+    val shape = RoundedCornerShape(8.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .border(1.dp, Accent.copy(alpha = 0.35f), shape)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(test.name, color = TextMain, fontSize = 11.sp)
+            val status = when (job?.status) {
+                JobStatus.RUNNING -> "fut..."
+                JobStatus.DONE -> job.lines.lastOrNull() ?: "kész"
+                JobStatus.FAILED -> "hiba"
+                null -> test.shortCode
+            }
+            Text(status, color = TextDim, fontSize = 9.sp, maxLines = 1)
+        }
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(50))
+                .background(if (running) Accent.copy(alpha = 0.25f) else Accent.copy(alpha = 0.85f))
+                .clickable(enabled = !running, onClick = onRun),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.PlayArrow,
+                contentDescription = "Futtatás: ${test.name}",
+                tint = if (running) Accent else StripeTextColor,
+                modifier = Modifier.size(18.dp),
+            )
+        }
     }
 }
 
@@ -364,15 +435,15 @@ internal fun RightDrawerPanel(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        RailIconButton(icon = Icons.Filled.Edit, contentDescription = "Jegyzet", onClick = onNotes)
         RailIconButton(icon = Icons.Filled.Bolt, contentDescription = "Gyorsjelentés", onClick = onQuickAccess)
+        RailIconButton(icon = Icons.Filled.Speed, contentDescription = "Sebességteszt", onClick = onSpeedTest)
         RailIconButton(icon = Icons.AutoMirrored.Filled.FormatListBulleted, contentDescription = "Napló", onClick = onLogOpen)
         RailDivider()
-        RailIconButton(icon = Icons.Filled.Sync, contentDescription = "Mentés", onClick = onSync)
-        RailIconButton(icon = Icons.Filled.Speed, contentDescription = "Sebességteszt", onClick = onSpeedTest)
-        RailIconButton(icon = Icons.Filled.Extension, contentDescription = "Külső szolgáltatók", onClick = onExternalServices)
-        RailDivider()
+        RailIconButton(icon = Icons.Filled.Edit, contentDescription = "Jegyzet", onClick = onNotes)
+        RailIconButton(icon = Icons.Filled.Extension, contentDescription = "Külső szolgáltatások", onClick = onExternalServices)
         RailIconButton(icon = Icons.Filled.Public, contentDescription = "Webolvasó", onClick = onWebReader)
+        RailDivider()
+        RailIconButton(icon = Icons.Filled.Sync, contentDescription = "Mentés", onClick = onSync)
         RailIconButton(icon = Icons.Filled.Settings, contentDescription = "Beállítások", onClick = onSettings)
         RailIconButton(icon = Icons.Filled.Info, contentDescription = "Névjegy", onClick = onAbout)
     }

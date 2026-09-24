@@ -1,4 +1,4 @@
-// Verzio: v0.5.0 - 2026-09-22
+// Verzio: v0.6.0 - 2026-09-24
 package hu.lordathis.networktools.settings
 
 import android.content.Context
@@ -109,6 +109,24 @@ class AppPreferences(context: Context) {
         get() = prefs.getBoolean(KEY_ARP_SPIKE_RAN, false)
         set(value) = prefs.edit().putBoolean(KEY_ARP_SPIKE_RAN, value).apply()
 
+    /**
+     * Egyszerű, gyors, alacsony hatású tesztek automatikus futtatása induláskor és rendszeresen.
+     * Ezek NEM jelennek meg a kézi fiókokban - lásd a teszt-rangsorolási elemzést.
+     */
+    var autoTestsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_AUTO_TESTS_ENABLED, true)
+        set(value) = prefs.edit().putBoolean(KEY_AUTO_TESTS_ENABLED, value).apply()
+
+    /** Ismétlési köz percben (5-120). Ha az automatikus tesztek együttes fut. ideje ennél nagyobb lenne, a tényleges köz +5 perccel megnő. */
+    var autoTestsIntervalMinutes: Int
+        get() = prefs.getInt(KEY_AUTO_TESTS_INTERVAL, 15)
+        set(value) = prefs.edit().putInt(KEY_AUTO_TESTS_INTERVAL, value.coerceIn(5, 120)).apply()
+
+    /** Az automatikus tesztek legutóbbi lefutásának ideje (ms) - a Gyorsjelentés-gomb "friss" jelzéséhez. */
+    var lastAutoTestsRunMs: Long
+        get() = prefs.getLong(KEY_LAST_AUTO_RUN, 0L)
+        set(value) = prefs.edit().putLong(KEY_LAST_AUTO_RUN, value).apply()
+
     // ------------------------------------------------------------------ Külső szolgáltatók (AI API/MCP)
 
     /** API-kulcs egy majdani külső (AI) szolgáltatáshoz - egyelőre csak tárolt mező, funkció nélkül. */
@@ -138,6 +156,9 @@ class AppPreferences(context: Context) {
         private const val KEY_EXTRA_SUBNETS = "extra_subnets"
         private const val KEY_SSH_LOGIN_ENABLED = "ssh_login_enabled"
         private const val KEY_ARP_SPIKE_RAN = "arp_spike_ran"
+        private const val KEY_AUTO_TESTS_ENABLED = "auto_tests_enabled"
+        private const val KEY_AUTO_TESTS_INTERVAL = "auto_tests_interval"
+        private const val KEY_LAST_AUTO_RUN = "last_auto_run"
         private const val KEY_EXTERNAL_API_KEY = "external_api_key"
         private const val KEY_EXTERNAL_MCP_SERVER = "external_mcp_server"
     }

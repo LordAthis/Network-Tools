@@ -1,4 +1,4 @@
-// Verzio: v0.5.0 - 2026-09-22
+// Verzio: v0.6.0 - 2026-09-24
 package hu.lordathis.networktools.engine
 
 import android.app.Application
@@ -156,6 +156,10 @@ class AppHub(application: Application) : AndroidViewModel(application) {
     )
     val testJobs: StateFlow<List<TestJob>> = testEngine.jobs
 
+    private val lastAutoRunState = MutableStateFlow(prefs.lastAutoTestsRunMs)
+    /** Az automatikus tesztek legutóbbi lefutása - a jobb fiók Gyorsjelentés ikonjának "friss" jelzéséhez. */
+    val lastAutoRunMs: StateFlow<Long> = lastAutoRunState.asStateFlow()
+
     // --- Mentés-előzmény (a Sync/Mentés panel alsó listája) ---------------------------------------------
     private val exportHistoryStore = ExportHistoryStore(File(storage.root, "export_history.csv"))
     private val exportHistoryState = MutableStateFlow<List<ExportHistoryEntry>>(emptyList())
@@ -240,6 +244,32 @@ class AppHub(application: Application) : AndroidViewModel(application) {
             runQuickCheck()
             registerNetworkWatcher()
             runArpSpikeIfNeeded()
+            runAutoTestsLoop()
+        }
+    }
+
+    /**
+     * Az egyszerű, gyors tesztek (lásd [TestCatalog.autoTests]) induláskori + időzített futtatása.
+     * A köz a beállított érték (5-120 perc), de ha az összes auto-teszt együttes ideje ennél tovább
+     * tartana, a köz automatikusan az összidő + 5 percre nő (biztonsági ráhagyás, hogy ne fusson
+     * egymásba két kör). A jelenlegi auto-tesztek együttes ideje a gyakorlatban pár másodperc, ezért
+     * ez a korlát a mostani készlettel nem szokott érvénybe lépni - de jövőbeli, lassabb auto-tesztnél igen.
+     */
+    private suspend fun runAutoTestsLoop() {
+        while (isActive) {
+            if (prefs.autoTestsEnabled) {
+                val tests = TestCatalog.autoTests(appContext)
+                for (def in tests) {
+                    testEngine.start(def.id, def.name, def.shortCode)
+                    delay(250) // enyhe ütemezés, hogy ne induljon mind egyszerre
+                }
+                prefs.lastAutoTestsRunMs = System.currentTimeMillis()
+                lastAutoRunState.value = prefs.lastAutoTestsRunMs
+            }
+            val estimatedTotalSeconds = TestCatalog.autoTests(appContext).size * 3 // óvatos, felülbecsült egyedi idő
+            val safetyMinutes = (estimatedTotalSeconds / 60) + 5
+            val effectiveMinutes = maxOf(prefs.autoTestsIntervalMinutes, safetyMinutes)
+            delay(effectiveMinutes * 60_000L)
         }
     }
 

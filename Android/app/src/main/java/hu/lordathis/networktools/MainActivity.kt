@@ -1,4 +1,4 @@
-// Verzio: v0.5.0 - 2026-09-22
+// Verzio: v0.6.0 - 2026-09-24
 package hu.lordathis.networktools
 
 import android.Manifest
@@ -71,6 +71,7 @@ import hu.lordathis.networktools.ui.DrawerScrim
 import hu.lordathis.networktools.ui.EdgeDrawer
 import hu.lordathis.networktools.ui.EdgeDrawerState
 import hu.lordathis.networktools.ui.HomeStripedPanel
+import hu.lordathis.networktools.ui.LEFT_DRAWER_PANEL_DP
 import hu.lordathis.networktools.ui.LeftDrawerPanel
 import hu.lordathis.networktools.ui.LogStripedPanel
 import hu.lordathis.networktools.ui.NetworkToolsTheme
@@ -83,7 +84,6 @@ import hu.lordathis.networktools.ui.SettingsUiState
 import hu.lordathis.networktools.ui.Skin
 import hu.lordathis.networktools.ui.StarField
 import hu.lordathis.networktools.ui.SyncStripedPanel
-import hu.lordathis.networktools.ui.TestGroupStripedPanel
 import hu.lordathis.networktools.ui.TextDim
 import hu.lordathis.networktools.ui.WebReaderStripedPanel
 import hu.lordathis.networktools.ui.WorkInProgressStripedPanel
@@ -111,7 +111,7 @@ import java.time.format.DateTimeFormatter
 
 private enum class Screen {
     HOME, SETTINGS, LOG, ABOUT, NOTES, WEB_READER,
-    QUICK_REPORT, TEST_GROUP, SYNC, SPEED_TEST, EXTERNAL_SERVICES, RESULTS,
+    QUICK_REPORT, SYNC, SPEED_TEST, EXTERNAL_SERVICES, RESULTS,
 }
 
 // A "Napló mentése" fájlválasztó alapértelmezett helye: a Letöltések mappa.
@@ -173,7 +173,6 @@ private fun NetworkToolsApp(hub: AppHub) {
     }
 
     var screen by remember { mutableStateOf(Screen.HOME) }
-    var activeTestGroup by rememberSaveable { mutableIntStateOf(1) }
     var skin by remember { mutableStateOf(runCatching { Skin.valueOf(prefs.skin) }.getOrDefault(Skin.SYSTEM)) }
     var webReaderUrl by rememberSaveable { mutableStateOf("") }
 
@@ -338,6 +337,8 @@ private fun NetworkToolsApp(hub: AppHub) {
     var extraSubnets by remember { mutableStateOf(prefs.extraSubnets) }
     var externalApiKey by remember { mutableStateOf(prefs.externalApiKey) }
     var externalMcpServer by remember { mutableStateOf(prefs.externalMcpServer) }
+    var autoTestsEnabled by remember { mutableStateOf(prefs.autoTestsEnabled) }
+    var autoTestsIntervalMinutes by remember { mutableIntStateOf(prefs.autoTestsIntervalMinutes) }
 
     val hasResults = testJobs.any { it.status != JobStatus.RUNNING } || quickReport.isNotEmpty()
 
@@ -418,6 +419,8 @@ private fun NetworkToolsApp(hub: AppHub) {
                                         scanConcurrency = scanConcurrency,
                                         extraSubnets = extraSubnets,
                                         sshLoginEnabled = prefs.sshLoginEnabled,
+                                        autoTestsEnabled = autoTestsEnabled,
+                                        autoTestsIntervalMinutes = autoTestsIntervalMinutes,
                                         externalApiKey = externalApiKey,
                                         externalMcpServer = externalMcpServer,
                                     ),
@@ -593,6 +596,15 @@ private fun NetworkToolsApp(hub: AppHub) {
                                             extraSubnets = it
                                             prefs.extraSubnets = it
                                         },
+                                        onAutoTestsEnabledChange = {
+                                            autoTestsEnabled = it
+                                            prefs.autoTestsEnabled = it
+                                            hub.log("Automatikus tesztek: " + if (it) "BE" else "KI")
+                                        },
+                                        onAutoTestsIntervalChange = {
+                                            autoTestsIntervalMinutes = it.coerceIn(5, 120)
+                                            prefs.autoTestsIntervalMinutes = autoTestsIntervalMinutes
+                                        },
                                         onExternalApiKeyChange = {
                                             externalApiKey = it
                                             prefs.externalApiKey = it
@@ -644,18 +656,6 @@ private fun NetworkToolsApp(hub: AppHub) {
                                 )
                             }
 
-                            Screen.TEST_GROUP -> {
-                                val group = testGroups.getOrNull(activeTestGroup - 1)
-                                if (group != null) {
-                                    TestGroupStripedPanel(
-                                        modifier = Modifier.fillMaxWidth().weight(1f),
-                                        group = group,
-                                        jobs = testJobs,
-                                        onRun = { test -> hub.startTest(test.id) },
-                                    )
-                                }
-                            }
-
                             Screen.SYNC -> {
                                 SyncStripedPanel(
                                     modifier = Modifier.fillMaxWidth().weight(1f),
@@ -705,12 +705,6 @@ private fun NetworkToolsApp(hub: AppHub) {
                         forcedTransport = forcedTransport,
                         wifiActive = quickCheck.connections.any { it.kind == ConnectionKind.WIFI },
                         mobileActive = quickCheck.connections.any { it.kind == ConnectionKind.CELLULAR },
-                        onToggleWifi = {
-                            hub.setForcedTransport(if (forcedTransport == ConnectionKind.WIFI) null else ConnectionKind.WIFI)
-                        },
-                        onToggleMobile = {
-                            hub.setForcedTransport(if (forcedTransport == ConnectionKind.CELLULAR) null else ConnectionKind.CELLULAR)
-                        },
                         onOpenWifiSettings = { hub.openSystemNetworkToggle(ConnectionKind.WIFI) },
                         onOpenMobileSettings = { hub.openSystemNetworkToggle(ConnectionKind.CELLULAR) },
                         onCenterClick = {
@@ -733,14 +727,13 @@ private fun NetworkToolsApp(hub: AppHub) {
                         rightDrawer.close()
                         leftDrawer.toggle()
                     },
+                    panelWidth = LEFT_DRAWER_PANEL_DP.dp,
                     modifier = Modifier.align(Alignment.TopStart)
                 ) {
                     LeftDrawerPanel(
-                        onFunction = { number ->
-                            activeTestGroup = number
-                            screen = Screen.TEST_GROUP
-                            leftDrawer.close()
-                        }
+                        groups = testGroups,
+                        jobs = testJobs,
+                        onRun = { test -> hub.startTest(test.id) },
                     )
                 }
 

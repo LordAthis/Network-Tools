@@ -1,4 +1,4 @@
-// Verzio: v0.5.0 - 2026-09-22
+// Verzio: v0.6.0 - 2026-09-24
 package hu.lordathis.networktools.ui
 
 import androidx.compose.foundation.border
@@ -78,6 +78,8 @@ internal data class SettingsUiState(
     val scanConcurrency: Int,
     val extraSubnets: String,
     val sshLoginEnabled: Boolean,
+    val autoTestsEnabled: Boolean,
+    val autoTestsIntervalMinutes: Int,
     // --- Külső szolgáltatók (AI API / MCP) ---
     val externalApiKey: String,
     val externalMcpServer: String,
@@ -116,6 +118,8 @@ internal data class SettingsActions(
     val onCustomPortListChange: (String) -> Unit,
     val onScanConcurrencyChange: (Int) -> Unit,
     val onExtraSubnetsChange: (String) -> Unit,
+    val onAutoTestsEnabledChange: (Boolean) -> Unit,
+    val onAutoTestsIntervalChange: (Int) -> Unit,
     // onSshLoginEnabledChange NINCS - a csúszka szándékosan inaktív, amíg a funkció el nem készül.
     // --- Külső szolgáltatók ---
     val onExternalApiKeyChange: (String) -> Unit,
@@ -445,6 +449,36 @@ internal fun SettingsStripedPanel(modifier: Modifier, ui: SettingsUiState, act: 
                     color = TextDim,
                     fontSize = 9.sp,
                     modifier = Modifier.padding(top = 2.dp),
+                )
+            }
+
+            // ---------------------------------------------------------------- Automatikus tesztek
+            SettingsSection("AUTOMATIKUS TESZTEK") {
+                Text(
+                    "Az egyszerű, gyors tesztek (adapter/IP-infó, publikus IP, CGNAT, IPv6, eszközinfó, " +
+                        "vezetékes/mobil összehasonlítás, WAN-elérhetőség, DNS-sebesség) induláskor automatikusan " +
+                        "lefutnak, és nem jelennek meg a bal oldali fiókok kézi listájában - csak a hosszabb, " +
+                        "nagyobb hatású tesztek (felderítés, portok, Miner) maradtak ott.",
+                    color = TextDim,
+                    fontSize = 9.sp,
+                )
+                Spacer(Modifier.height(6.dp))
+                CheckRow("Automatikus futtatás bekapcsolva", ui.autoTestsEnabled, act.onAutoTestsEnabledChange)
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = ui.autoTestsIntervalMinutes.toString(),
+                    onValueChange = { text -> text.toIntOrNull()?.let(act.onAutoTestsIntervalChange) },
+                    label = { Text("Ismétlés (5-120 perc)") },
+                    singleLine = true,
+                    colors = appFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "Ha az összes automatikus teszt együttes ideje ennél tovább tartana, a köz automatikusan " +
+                        "az összidő + 5 percre nő - a jelenlegi tesztekkel ez a gyakorlatban nem szokott előfordulni.",
+                    color = TextDim,
+                    fontSize = 9.sp,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
 

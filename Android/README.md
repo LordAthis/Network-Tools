@@ -1,4 +1,4 @@
-<!-- Verzio: v0.5.0 - 2026-09-22 -->
+<!-- Verzio: v0.6.0 - 2026-09-24 -->
 # Network Tool's - Android
 
 A Network-Tools projekt Android változata (Kotlin + Jetpack Compose, minSdk 26). Ebben a körben az UI-váz mellé bekerült egy
@@ -12,36 +12,51 @@ valódi hálózati teszt-motor is (lásd lent) - korábban csak a kinézet és a
   a JELENLEGI hálózatra szűrve), alul a **VISSZAJELZÉSEK** terület: 2/3 az éppen futó teszt(ek) élő, terminál-szerű kimenete
   (lapfüllel, ha egyszerre több fut), 1/3 az állandó, korábbi indításokat is mutató LOG.
 - **Két, szél-húzással nyitható fiók** - a funkciók gombjai KIZÁRÓLAG itt vannak:
-  - **Bal**: F1 · F2 · F3 - a "teljesen natívan megvalósítható" hálózati tesztek, három témába csoportosítva.
-  - **Jobb**: Jegyzet · Gyorsjelentés (teljes nézet) · Napló · Mentés · Sebességteszt · Külső szolgáltatások · Webolvasó ·
-    Beállítások · Névjegy.
-- **Alsó ikonsor - MINDEN képernyőn**: [mobilnet + fogaskerék] — [közép] — [WiFi + fogaskerék]. A mobilnet/WiFi ikonra
-  koppintva az app a SAJÁT forgalmát arra a hálózatra kényszeríti (lásd lent, "Hálózat-kényszerítés"); a fogaskerék a
-  rendszer WiFi/mobiladat beállítását nyitja. A közép ikon a Kezdőlapon lefelé mutató **nyíl** (csak eredménnyel aktív →
-  Eredmények képernyő), minden más képernyőn **házikó** (vissza a Kezdőlapra).
+  - **Bal (széles, 280dp, akár 85% magasságig nő)**: a MANUÁLIS hálózati tesztek, közvetlenül FUTTATÁS gombbal,
+    3 csoportban: Felderítés (ping-sweep, hostname, SNMP), Szolgáltatások (port-scan, HTTP-cím, SSH-banner), Miner
+    (Miner API - itt bővül majd a jövőbeli Miner's funkció).
+  - **Jobb**: Gyorsjelentés, Sebességteszt, Napló — Jegyzet, Külső szolgáltatások, Webolvasó — Mentés, Beállítások,
+    Névjegy (3 csoport, elválasztókkal).
+- **Alsó ikonsor - MINDEN képernyőn**: [mobilnet] — [közép] — [WiFi], mindig valódi, középre igazított elrendezésben.
+  A mobilnet/WiFi ikonra koppintva a rendszer WiFi/mobiladat beállítása nyílik meg (a "forgalom erre kényszerítése"
+  kapcsoló a Beállítások > Hálózati beállítások alatt van, nem az ikonsoron). A közép ikon MINDIG ugyanaz a
+  házikó-ikon, ugyanakkora: a Kezdőlapon fejjel LEFELÉ (csak eredménnyel aktív → Eredmények képernyő), minden más
+  képernyőn a megszokott állásban (vissza a Kezdőlapra).
 - Vissza gomb: nyitott fiók zárása → panelről a Kezdőlapra → kilépés.
 
-## Hálózati tesztek (ÚJ ebben a körben)
+## Hálózati tesztek (frissítve ebben a körben: auto/manuális felosztás)
 
-Az `F1`/`F2`/`F3` gombok a `Network-Tools_feladatlista_es_halozati_tesztek.md` dokumentum "✅ Teljesen, natívan
-megvalósítható" csoportjait valósítják meg, témánként (a lista `assets/tests_catalog.json`-ban van, névvel + rövidkóddal):
+A valós eszközön futtatott naplók alapján a tesztek két csoportra váltak szét (a pontos indoklás a
+beszélgetésben található "teszt-rangsorolási elemzésben" van):
 
-- **F1 - Hálózat és eszközök**: adapter/IP-infó, átjáró+DNS, publikus IP, CGNAT-teszt, IPv6-állapot, eszköz/rendszerinfó,
-  ping-sweep, hostname-feloldás, SNMP-alapú eszközfelismerés, vezetékes/mobil összehasonlítás.
-- **F2 - Portok és szolgáltatások**: port-scan (lista vagy "összes", lásd Hálózati beállítások), HTTP web-UI cím, SSH-banner,
-  miner API-próba (cgminer/bmminer JSON).
-- **F3 - Útvonal és kapcsolat**: gateway/WAN-elérhetőség + csomagvesztés, DNS-feloldási sebesség.
+- **Automatikus (9 db)**: adapter/IP-infó, átjáró+DNS, publikus IP, CGNAT, IPv6-állapot, eszközinfó,
+  vezetékes/mobil összehasonlítás, WAN-elérhetőség, DNS-sebesség - mind helyi vagy egyetlen gyors hálózati hívás.
+  Induláskor és (Beállítások > Automatikus tesztek alatt megadott, 5-120 perces) időközönként lefutnak, NEM
+  jelennek meg kézi gombbal.
+- **Manuális (7 db, a bal fiókban, 3 csoportban)**: ping-sweep, hostname-feloldás, SNMP-felismerés (Felderítés) ·
+  port-scan, HTTP-cím, SSH-banner (Szolgáltatások) · Miner API-próba (Miner). Mind a (lassabb) eszközkeresésre épül.
+
+**Ismert, még nem javított tervezési hiba**: a Felderítés/Szolgáltatások/Miner tesztek mindegyike ÖNÁLLÓAN
+újra lefuttatja a ping-sweepet induláskor, ahelyett hogy megosztanák az eredményt - feleslegesen lassítja
+őket. Egy következő kör feladata.
+
+**ARP-tábla - megerősítve NEM olvasható**: a valós eszközön (Ulefone Power Armor14 Pro, Android 12) futtatott
+ARP-spike teszt szerint a `/proc/net/arp` nem olvasható root nélkül - a MAC-alapú "néma eszköz" és gyártó-
+felismerés funkciók emiatt Androidon nem valósíthatók meg root nélkül.
+
+
 
 Minden teszt a **saját, hosszú életű scope-jában fut** (nem a képernyőn) - a panel bezárása, a fiókok nyitása/zárása nem
-szakítja meg. Fut közben a terminál-sáv élőben mutatja; a végén egy teljes átirat kerül a `log/tests/` mappába
-(`<HálózatNév>_ÉÉÉÉMMDD_HHmmss.log`), és egy rövid összefoglaló a Gyorsjelentésbe.
+szakítja meg. Fut közben a bal fiók (manuális teszteknél) és a Kezdőlap terminál-sávja (mindkét fajtánál) élőben mutatja;
+a végén egy teljes átirat kerül a `log/tests/` mappába (`<HálózatNév>_ÉÉÉÉMMDD_HHmmss.log`), és egy rövid összefoglaló
+a Gyorsjelentésbe.
 
-**ARP-spike**: induláskor EGYETLEN alkalommal lefut egy próba (`/proc/net/arp` olvasható-e) - az eredmény a LOG-ban van, és
-onnantól nem fut le újra. Ez dönti majd el, hogy a MAC-cím-alapú funkciók (gyártó-felismerés, "néma eszköz") megvalósíthatók-e
-root nélkül - lásd a feladatlista B1 pontját.
+**ARP-spike**: induláskor EGYETLEN alkalommal lefut egy próba (`/proc/net/arp` olvasható-e) - onnantól nem fut le újra.
+Az eredmény (lásd fent) megerősítette, hogy nem olvasható.
 
 **Ismert korlát (Android-platform, nem hiba)**: más appok TCP-kapcsolatai, a rendszer ARP-táblája, a teljes route-tábla és a
-traceroute root nélkül nem (vagy csak részlegesen) érhető el egy telepített appból - ezt a feladatlista részletesen indokolja.
+traceroute root nélkül nem (vagy csak részlegesen) érhető el egy telepített appból - ezt a
+`Network-Tools_feladatlista_es_halozati_tesztek.md` dokumentum részletesen indokolja.
 
 ## Hálózat-kényszerítés és hálózati profilok (ÚJ)
 
@@ -103,10 +118,15 @@ Az elv: az app nem csinál rejtett, fájlonként nem látható/törölhető ment
 
 - **Floppy (profil-kezelő UI)**, **Import/Export** (ajtó-nyíl ikon), **SSH/FTP-webolvasó bővítés**, **Bluetooth-panel**,
   **Miner's** (ventilátor ikon, hitelesítő-trezor, AI-fotó-felismerés) - ezek a KÖVETKEZŐ kör anyaga.
-- **A MAC-cím → név "interjú" folyamat** (teszt után végigkérdezi a talált eszközöket): az ARP-spike eredményétől függ,
-  ami csak ebben a körben derül ki - utána tervezhető.
-- **Saját (importált) értesítési hangfájl**: a rendszer hangkiválasztó megvan, a saját fájl importálása még nem készült el
-  ebben a körben (kimaradt, pótlandó).
+- **A MAC-cím → név "interjú" folyamat**: az ARP-spike eredménye (lásd fent) megerősítette, hogy MAC-cím root nélkül nem
+  szerezhető - ez a funkció emiatt jelen formájában nem tervezhető tovább (más forrás kellene a MAC-hez, pl. a jövőbeli
+  router-bejelentkezés).
+- **Saját (importált) értesítési hangfájl**: a rendszer hangkiválasztó megvan, a saját fájl importálása még nem készült el.
+- **Bal oldali fiók - egy döntés, ami eltér a szó szerinti kéréstől**: "3 fiókra bontás" helyett EGY, kiszélesített (280dp),
+  magasabbra nyíló (85%-ig) fiók lett, 3 névvel elválasztott csoporttal - a szó szerinti 3 FÜGGETLEN, egyszerre húzható
+  fiók a meglévő, korábban már hibajavított, egyedi gesztus-kód miatt kockázatosabb lett volna élő teszt nélkül.
+- **Gyorsjelentés-gomb "friss" jelzése** (ha 5 percnél frissebb az automatikus tesztek eredménye): az adat (`lastAutoRunMs`)
+  megvan, de a vizuális jelzés (pl. egy pötty az ikonon) még nincs bekötve a jobb fiók gombjára.
 
 ## Szerkezet
 
