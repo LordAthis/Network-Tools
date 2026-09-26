@@ -1,6 +1,6 @@
 {
-  "version": "1.1",
-  "updated": "2026-09-04",
+  "version": "1.2",
+  "updated": "2026-09-27",
   "description": "Mining pools - stratum endpoints, ports, keywords. Companion to minerpoollist.json",
   "common_stratum_ports": [3333, 3334, 443, 25, 1800, 1314, 1315, 2309, 2310, 5555, 4444, 21496, 9999, 3357, 1010, 8888, 3002],
   "priority_outbound_ports": [3333, 443, 25, 1800, 1314, 2309, 5555, 3357, 1010, 8888],
@@ -9,7 +9,8 @@
     "emcd", "luxor", "binance", "ckpool", "public-pool", "2miners", "herominers", "woolypooly",
     "nanopool", "k1pool", "kryptex", "katpool", "powhashing", "litecoinpool", "stratum+tcp",
     "stratum+ssl", "stratum.", "ss.antpool", "btc.f2pool", "btc.viabtc", "ltc.viabtc", "ltc.f2pool",
-    "zec.f2pool", "zec.2miners", "kas.katpool", "kaspa", "dingo", "scrypt", "equihash"
+    "zec.f2pool", "zec.2miners", "kas.katpool", "kaspa", "dingo", "scrypt", "equihash",
+    "btcpowlab", "btcpowlab-pool"
   ],
   "pools": [
     {
@@ -162,6 +163,15 @@
       "stratum": [{"url": "stratum+tcp://public-pool.io:21496", "port": 21496}],
       "domains": ["public-pool.io"],
       "keywords": ["public-pool"]
+    },
+    {
+      "id": "btc_pow_lab",
+      "name": "BTC PoW Lab Hybrid Solo",
+      "coins": ["BTC"],
+      "algorithms": ["SHA-256"],
+      "stratum": [{"url": "stratum+tcp://stratum.btcpowlab-pool.com:3333", "port": 3333}],
+      "domains": ["btcpowlab-pool.com"],
+      "keywords": ["btcpowlab", "btcpowlab-pool"]
     },
     {
       "id": "herominers",
