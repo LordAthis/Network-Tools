@@ -35,5 +35,7 @@
   "kaspa",
   "dingo",
   "scrypt",
-  "equihash"
+  "equihash",
+  "btcpowlab",
+  "btcpowlab-pool"
 ]
