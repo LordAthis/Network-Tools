@@ -1,4 +1,4 @@
-// Verzio: v0.6.0 - 2026-09-24
+// Verzio: v0.7.0 - 2026-09-27
 package hu.lordathis.networktools.engine
 
 import android.content.Context
@@ -23,8 +23,25 @@ object TestCatalog {
     fun groups(context: Context): List<TestGroup> = loaded(context).second
     fun arpSpike(context: Context): TestDef = loaded(context).third
 
+    /** A Sebességteszt képernyő tesztjei (nem a bal fiókban, hanem a saját paneljükön indulnak). */
+    fun speedTests(context: Context): List<TestDef> {
+        speedCached?.let { return it }
+        val text = context.assets.open("tests_catalog.json").bufferedReader(Charsets.UTF_8).use { it.readText() }
+        val arr = JSONObject(text).optJSONArray("speed_tests")
+        val list = if (arr != null) parseTestList(arr, "speed") else emptyList()
+        speedCached = list
+        return list
+    }
+
+    /** Egy sebességteszt definíciója; ha a katalógusból hiányozna, egy tartalék név/kód. */
+    fun speedTest(context: Context, id: String, fallbackName: String, fallbackCode: String): TestDef =
+        speedTests(context).firstOrNull { it.id == id } ?: TestDef(id, fallbackName, fallbackCode, "speed")
+
+    private var speedCached: List<TestDef>? = null
+
     fun find(context: Context, testId: String): TestDef? =
         autoTests(context).firstOrNull { it.id == testId }
+            ?: speedTests(context).firstOrNull { it.id == testId }
             ?: groups(context).flatMap { it.tests }.firstOrNull { it.id == testId }
             ?: arpSpike(context).takeIf { it.id == testId }
 

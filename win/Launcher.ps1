@@ -1,5 +1,5 @@
 ﻿#Requires -Version 3.0
-# Verzio: v1.1.0 - 2026-09-11
+# Verzio: v1.2.0 - 2026-09-27
 # ============================================================
 #  Launcher.ps1  -  Halozati eszkozok indito menu
 #  Bat es PS1 scriptek inditasa ugyanabban az ablakban
@@ -128,6 +128,13 @@ $Scripts = @(
         File        = "IPv5_IPv6_CGNAT_Test.ps1"
         Type        = "ps1"
         Description = "IPv6 elerhetoseg + publikus IP / CGNAT vizsgalat (Start-Transcript logolassal)"
+    },
+    @{
+        Number      = "15"
+        Name        = "SpeedServer (LAN sebessegmeres)"
+        File        = "SpeedServer.ps1"
+        Type        = "ps1"
+        Description = "LAN sebessegmero szerver a telefonos app Sebessegteszt > LAN-meresehez (port 8765, Q = leallitas)"
     }
 )
 

@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "auto_tests": [
     { "id": "adapter_info", "name": "Adapterek es IP-konfiguracio", "shortCode": "ADP" },
     { "id": "gateway_dns", "name": "Atjaro es DNS-szerverek", "shortCode": "GW" },
@@ -37,6 +37,12 @@
         { "id": "miner_api", "name": "Miner API proba", "shortCode": "MINER" }
       ]
     }
+  ],
+  "speed_tests": [
+    { "id": "speed_bw", "name": "Savszelesseg-teszt (M1)", "shortCode": "SPEED" },
+    { "id": "speed_udp", "name": "Stabilitas / csomagvesztes (M2)", "shortCode": "LOSS" },
+    { "id": "speed_ping", "name": "Kabelteszt - folyamatos ping (M3)", "shortCode": "CABLE" },
+    { "id": "speed_lan", "name": "LAN-meres (belso eszkozok)", "shortCode": "LAN" }
   ],
   "arp_spike": { "id": "arp_spike", "name": "ARP-tabla olvashatosagi teszt", "shortCode": "ARP" }
 }

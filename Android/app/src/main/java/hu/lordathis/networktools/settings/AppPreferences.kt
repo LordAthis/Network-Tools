@@ -1,4 +1,4 @@
-// Verzio: v0.6.0 - 2026-09-24
+// Verzio: v0.7.0 - 2026-09-27
 package hu.lordathis.networktools.settings
 
 import android.content.Context
@@ -127,6 +127,62 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong(KEY_LAST_AUTO_RUN, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_AUTO_RUN, value).apply()
 
+    // ------------------------------------------------------------------ Sebességteszt
+
+    /** M1 szerver: "CLOUDFLARE" | "CUSTOM" | "LAN_SERVER". */
+    var speedServer: String
+        get() = prefs.getString(KEY_SPEED_SERVER, "CLOUDFLARE") ?: "CLOUDFLARE"
+        set(value) = prefs.edit().putString(KEY_SPEED_SERVER, value).apply()
+
+    var speedCustomUrl: String
+        get() = prefs.getString(KEY_SPEED_CUSTOM_URL, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SPEED_CUSTOM_URL, value).apply()
+
+    /** A PC-n futó win/SpeedServer.ps1 címe ("ip:port"). */
+    var speedLanServer: String
+        get() = prefs.getString(KEY_SPEED_LAN_SERVER, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SPEED_LAN_SERVER, value).apply()
+
+    var speedConnections: Int
+        get() = prefs.getInt(KEY_SPEED_CONNECTIONS, 4)
+        set(value) = prefs.edit().putInt(KEY_SPEED_CONNECTIONS, value.coerceIn(1, 16)).apply()
+
+    var speedDurationSec: Int
+        get() = prefs.getInt(KEY_SPEED_DURATION, 10)
+        set(value) = prefs.edit().putInt(KEY_SPEED_DURATION, value.coerceIn(5, 60)).apply()
+
+    var speedUpload: Boolean
+        get() = prefs.getBoolean(KEY_SPEED_UPLOAD, true)
+        set(value) = prefs.edit().putBoolean(KEY_SPEED_UPLOAD, value).apply()
+
+    /** M2 preset neve (StabilityPreset). */
+    var speedStabilityPreset: String
+        get() = prefs.getString(KEY_SPEED_UDP_PRESET, "GENERAL_30") ?: "GENERAL_30"
+        set(value) = prefs.edit().putString(KEY_SPEED_UDP_PRESET, value).apply()
+
+    /** M2/M3 cél: "AUTO" | "GATEWAY" | "1.1.1.1" | "8.8.8.8" | egyedi IP/név. */
+    var speedUdpTarget: String
+        get() = prefs.getString(KEY_SPEED_UDP_TARGET, "AUTO") ?: "AUTO"
+        set(value) = prefs.edit().putString(KEY_SPEED_UDP_TARGET, value).apply()
+
+    var speedPingTarget: String
+        get() = prefs.getString(KEY_SPEED_PING_TARGET, "GATEWAY") ?: "GATEWAY"
+        set(value) = prefs.edit().putString(KEY_SPEED_PING_TARGET, value).apply()
+
+    var speedPingIntervalMs: Int
+        get() = prefs.getInt(KEY_SPEED_PING_INTERVAL, 500)
+        set(value) = prefs.edit().putInt(KEY_SPEED_PING_INTERVAL, value.coerceIn(200, 5000)).apply()
+
+    /** Kiesésnél rövid hangjelzés a kábelteszt alatt. */
+    var speedPingSound: Boolean
+        get() = prefs.getBoolean(KEY_SPEED_PING_SOUND, true)
+        set(value) = prefs.edit().putBoolean(KEY_SPEED_PING_SOUND, value).apply()
+
+    /** A hálózaton belüli (LAN) mérés külön kapcsolója - alapból KI. */
+    var speedLanEnabled: Boolean
+        get() = prefs.getBoolean(KEY_SPEED_LAN_ENABLED, false)
+        set(value) = prefs.edit().putBoolean(KEY_SPEED_LAN_ENABLED, value).apply()
+
     // ------------------------------------------------------------------ Külső szolgáltatók (AI API/MCP)
 
     /** API-kulcs egy majdani külső (AI) szolgáltatáshoz - egyelőre csak tárolt mező, funkció nélkül. */
@@ -159,6 +215,18 @@ class AppPreferences(context: Context) {
         private const val KEY_AUTO_TESTS_ENABLED = "auto_tests_enabled"
         private const val KEY_AUTO_TESTS_INTERVAL = "auto_tests_interval"
         private const val KEY_LAST_AUTO_RUN = "last_auto_run"
+        private const val KEY_SPEED_SERVER = "speed_server"
+        private const val KEY_SPEED_CUSTOM_URL = "speed_custom_url"
+        private const val KEY_SPEED_LAN_SERVER = "speed_lan_server"
+        private const val KEY_SPEED_CONNECTIONS = "speed_connections"
+        private const val KEY_SPEED_DURATION = "speed_duration"
+        private const val KEY_SPEED_UPLOAD = "speed_upload"
+        private const val KEY_SPEED_UDP_PRESET = "speed_udp_preset"
+        private const val KEY_SPEED_UDP_TARGET = "speed_udp_target"
+        private const val KEY_SPEED_PING_TARGET = "speed_ping_target"
+        private const val KEY_SPEED_PING_INTERVAL = "speed_ping_interval"
+        private const val KEY_SPEED_PING_SOUND = "speed_ping_sound"
+        private const val KEY_SPEED_LAN_ENABLED = "speed_lan_enabled"
         private const val KEY_EXTERNAL_API_KEY = "external_api_key"
         private const val KEY_EXTERNAL_MCP_SERVER = "external_mcp_server"
     }

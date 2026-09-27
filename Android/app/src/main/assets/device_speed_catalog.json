@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "updated": "2026-09-27",
+  "description": "Gyarto-specifikus halozati port-sebesseg lista. A Sebessegteszt LAN-merese ez alapjan tudja, hogy egy eszkoz ALAPBOL milyen sebesseggel dolgozik (pl. egy 10/100-as miner-vezerlopanelnel a ~94 Mbps nem hiba, hanem a vart plafon). BOVITENDO: uj bejegyzes = uj objektum az entries tombben. A telefonon felvett sajat bejegyzesek a profiles/device_speeds_user.json fajlba kerulnek - a bevalt sajat bejegyzeseket erdemes ide atvezetni.",
+  "schema": {
+    "id": "egyedi azonosito",
+    "vendor": "gyarto",
+    "model": "modell / csalad",
+    "category": "miner | switch | router | ap | nas | tv | console | printer | camera | iot | sbc | pc | egyeb",
+    "portMbps": "a vezetekes port nevleges sebessege (10/100/1000/2500...), null ha nincs vezetekes port",
+    "wifiMbps": "csak WiFi-s eszkoznel: a radio jellemzo max. PHY-sebessege",
+    "match": "kulcsszavak (kisbetus mindegy) - a hostname, HTTP-cim, SNMP sysDescr, SSH-banner vagy miner API valasz tartalmazza; a leghosszabb egyezo kulcsszo nyer",
+    "confidence": "magas | kozepes | alacsony - mennyire biztos az adat (gyari adatlap = magas)",
+    "notes": "megjegyzes"
+  },
+  "entries": [
+    { "id": "bitmain_antminer_s19_s21", "vendor": "Bitmain", "model": "Antminer S19 / S21 / T21 csalad (vezerlopanel)", "category": "miner", "portMbps": 100, "wifiMbps": null, "match": ["antminer s19", "antminer s21", "antminer t21", "antminer"], "confidence": "magas", "notes": "A gyari adatlap szerint RJ45 Ethernet 10/100M. ~94 Mbps a vart plafon, nem kabelhiba." },
+    { "id": "bitmain_antminer_l7_l9_ks", "vendor": "Bitmain", "model": "Antminer L7 / L9 / KS / Z15 (vezerlopanel)", "category": "miner", "portMbps": 100, "wifiMbps": null, "match": ["antminer l7", "antminer l9", "antminer ks", "antminer z15"], "confidence": "kozepes", "notes": "Ugyanaz a vezerlopanel-csalad, 10/100M." },
+    { "id": "microbt_whatsminer", "vendor": "MicroBT", "model": "Whatsminer M30/M50/M60 csalad", "category": "miner", "portMbps": 100, "wifiMbps": null, "match": ["whatsminer", "btminer"], "confidence": "alacsony", "notes": "A vezerlopanel jellemzoen 10/100 - sajat meressel erositendo meg." },
+    { "id": "canaan_avalon", "vendor": "Canaan", "model": "AvalonMiner / Avalon Nano", "category": "miner", "portMbps": 100, "wifiMbps": null, "match": ["avalon", "avalonminer", "canaan"], "confidence": "alacsony", "notes": "Az Avalon Nano WiFi-s; a nagy gepek vezerloje jellemzoen 10/100." },
+    { "id": "iceriver", "vendor": "IceRiver", "model": "IceRiver KS/AL sorozat", "category": "miner", "portMbps": 100, "wifiMbps": null, "match": ["iceriver"], "confidence": "alacsony", "notes": "Sajat meressel erositendo meg." },
+    { "id": "goldshell", "vendor": "Goldshell", "model": "Goldshell box / KD / LT sorozat", "category": "miner", "portMbps": 100, "wifiMbps": null, "match": ["goldshell"], "confidence": "alacsony", "notes": "Sajat meressel erositendo meg." },
+    { "id": "bitaxe", "vendor": "Bitaxe (nyilt hardver)", "model": "Bitaxe / NerdAxe (ESP32-S3)", "category": "miner", "portMbps": null, "wifiMbps": 72, "match": ["bitaxe", "axeos", "nerdaxe", "nerdminer"], "confidence": "magas", "notes": "Csak 2,4 GHz WiFi (ESP32-S3, 1x1 802.11n). A valos atvitel nehany 10 Mbps, gyenge jelnel sokkal kevesebb." },
+
+    { "id": "rpi_1_2_3", "vendor": "Raspberry Pi", "model": "Raspberry Pi 1 / 2 / 3B", "category": "sbc", "portMbps": 100, "wifiMbps": null, "match": ["raspberry pi 3 model b rev", "raspberry pi 2", "rpi3"], "confidence": "magas", "notes": "10/100 Ethernet (USB 2.0 mogott)." },
+    { "id": "rpi_3bplus", "vendor": "Raspberry Pi", "model": "Raspberry Pi 3B+", "category": "sbc", "portMbps": 1000, "wifiMbps": null, "match": ["raspberry pi 3 model b plus"], "confidence": "magas", "notes": "Gigabit port, de USB 2.0 mogott: gyakorlatban max. ~300 Mbps." },
+    { "id": "rpi_4_5", "vendor": "Raspberry Pi", "model": "Raspberry Pi 4 / 5", "category": "sbc", "portMbps": 1000, "wifiMbps": null, "match": ["raspberry pi 4", "raspberry pi 5", "raspberrypi", "raspberry"], "confidence": "magas", "notes": "Valodi gigabit." },
+
+    { "id": "esp_iot", "vendor": "Espressif alapu IoT", "model": "ESP8266 / ESP32 (Shelly, Sonoff, Tasmota, Tuya, ESPHome)", "category": "iot", "portMbps": null, "wifiMbps": 72, "match": ["esp8266", "esp32", "espressif", "shelly", "sonoff", "tasmota", "esphome", "tuya"], "confidence": "magas", "notes": "Csak 2,4 GHz WiFi, 1x1. Nehany Mbps valos atvitel teljesen normalis." },
+
+    { "id": "tplink_sf_100", "vendor": "TP-Link", "model": "TL-SF1005D / SF1008D / SF1016D (10/100 switch)", "category": "switch", "portMbps": 100, "wifiMbps": null, "match": ["tl-sf10", "sf1005", "sf1008", "sf1016"], "confidence": "magas", "notes": "Fast Ethernet switch: minden mogotte levo eszkoz max. ~94 Mbps." },
+    { "id": "tplink_sg_1000", "vendor": "TP-Link", "model": "TL-SG105 / SG108 / SG116 / SG1016 (+E easy smart)", "category": "switch", "portMbps": 1000, "wifiMbps": null, "match": ["tl-sg1", "sg105", "sg108", "sg116", "sg1016", "sg1024"], "confidence": "magas", "notes": "Gigabit switch." },
+    { "id": "netgear_fs_100", "vendor": "Netgear", "model": "FS105 / FS108 / FS116 (10/100 switch)", "category": "switch", "portMbps": 100, "wifiMbps": null, "match": ["fs105", "fs108", "fs116"], "confidence": "magas", "notes": "Fast Ethernet switch." },
+    { "id": "netgear_gs_1000", "vendor": "Netgear", "model": "GS105 / GS108 / GS305 / GS308 / GS3xx", "category": "switch", "portMbps": 1000, "wifiMbps": null, "match": ["gs105", "gs108", "gs305", "gs308", "gs316", "gs324"], "confidence": "magas", "notes": "Gigabit switch." },
+    { "id": "dlink_des_100", "vendor": "D-Link", "model": "DES-10xx (10/100 switch)", "category": "switch", "portMbps": 100, "wifiMbps": null, "match": ["des-10", "des-1005", "des-1008", "des-1016"], "confidence": "magas", "notes": "Fast Ethernet switch." },
+    { "id": "dlink_dgs_1000", "vendor": "D-Link", "model": "DGS-10xx / DGS-11xx (gigabit switch)", "category": "switch", "portMbps": 1000, "wifiMbps": null, "match": ["dgs-10", "dgs-11", "dgs-12"], "confidence": "magas", "notes": "Gigabit switch." },
+    { "id": "mikrotik_hap_lite", "vendor": "MikroTik", "model": "hAP lite / hAP mini (RB941/RB931)", "category": "router", "portMbps": 100, "wifiMbps": 150, "match": ["rb941", "rb931", "hap lite", "hap mini"], "confidence": "magas", "notes": "10/100 portok, 2,4 GHz WiFi." },
+    { "id": "mikrotik_gigabit", "vendor": "MikroTik", "model": "hEX / hAP ac / hAP ax / RB5009 / CRS", "category": "router", "portMbps": 1000, "wifiMbps": null, "match": ["rb750gr3", "mikrotik hex", "hap ac", "hap ax", "rb5009", "crs3", "mikrotik", "routeros"], "confidence": "kozepes", "notes": "A legtobb aktualis MikroTik gigabites; a regi RB750/RB951 (nem G) 10/100!" },
+    { "id": "ubiquiti_unifi", "vendor": "Ubiquiti", "model": "UniFi AP / switch / gateway", "category": "ap", "portMbps": 1000, "wifiMbps": null, "match": ["unifi", "ubnt", "ubiquiti", "edgerouter"], "confidence": "kozepes", "notes": "A regi UAP-AC-Lite 1G, de nehany Flex Mini/regi modell eltero lehet." },
+
+    { "id": "sony_ps4_ps5", "vendor": "Sony", "model": "PlayStation 4 / 5", "category": "console", "portMbps": 1000, "wifiMbps": null, "match": ["playstation", "ps4", "ps5"], "confidence": "magas", "notes": "Gigabit port." },
+    { "id": "ms_xbox", "vendor": "Microsoft", "model": "Xbox One / Series", "category": "console", "portMbps": 1000, "wifiMbps": null, "match": ["xbox"], "confidence": "magas", "notes": "Gigabit port." },
+    { "id": "smart_tv_100", "vendor": "Samsung / LG / Philips / Sony / Hisense / TCL", "model": "Smart TV-k tobbsege", "category": "tv", "portMbps": 100, "wifiMbps": null, "match": ["smarttv", "tizen", "webos", "bravia", "android-tv", "androidtv", "hisense", "philips-tv"], "confidence": "kozepes", "notes": "Sok TV (a draga modellek is) csak 10/100 Ethernetet ad - ilyenkor a WiFi-je gyakran GYORSABB, mint a kabel." },
+    { "id": "chromecast_eth", "vendor": "Google", "model": "Chromecast (Ethernet adapterrel)", "category": "tv", "portMbps": 100, "wifiMbps": null, "match": ["chromecast", "google-tv"], "confidence": "kozepes", "notes": "Az adapter 10/100; adapter nelkul WiFi." },
+    { "id": "printer_100", "vendor": "HP / Canon / Epson / Brother", "model": "Otthoni/irodai halozati nyomtatok", "category": "printer", "portMbps": 100, "wifiMbps": null, "match": ["laserjet", "officejet", "deskjet", "pixma", "epson", "brother", "hp-print", "canon"], "confidence": "kozepes", "notes": "A legtobb nyomtato 10/100 - ez normalis, nem hiba." },
+    { "id": "ipcam_100", "vendor": "Hikvision / Dahua / Reolink / Foscam", "model": "IP-kamerak, NVR-ek kamera-oldala", "category": "camera", "portMbps": 100, "wifiMbps": null, "match": ["hikvision", "dahua", "reolink", "foscam", "ipcam"], "confidence": "kozepes", "notes": "A kamerak szinte mind 10/100 portosak; az NVR uplinkje gyakran 1G." },
+    { "id": "nas_synology_qnap", "vendor": "Synology / QNAP", "model": "NAS (otthoni)", "category": "nas", "portMbps": 1000, "wifiMbps": null, "match": ["synology", "diskstation", "qnap"], "confidence": "kozepes", "notes": "Jellemzoen 1G, ujabb modellek 2,5G." },
+    { "id": "huawei_lte_router", "vendor": "Huawei", "model": "LTE/5G otthoni routerek (B311/B315/B535/B818/5G CPE)", "category": "router", "portMbps": 1000, "wifiMbps": null, "match": ["huawei b3", "huawei b5", "b311", "b315", "b535", "b818", "5g cpe", "mobile wifi"], "confidence": "alacsony", "notes": "A LAN portok modelltol fuggoen 10/100 vagy 1G - sajat meressel pontositando. A mobilnet sebessege ugyis altalaban kisebb." }
+  ]
+}

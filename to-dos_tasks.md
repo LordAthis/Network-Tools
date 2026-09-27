@@ -55,29 +55,48 @@ Az alkalmazásnak három fő diagnosztikai modult kell tartalmaznia a fizikai Et
 ## 3. Implementációs Tennivalók Listája (Android Fejlesztői Taskok)
 
 ### ⬜ UI/UX Tervezés
-*   [ ] Egybefüggő Dashboard tervezése, ahol mindhárom teszt indítható.
-*   [ ] Valós idejű kördiagram a csomagveszteség ábrázolására (zöld/sárga/piros zónákkal).
-*   [ ] Valós idejű Line Chart a folyamatos ping modulhoz.
-*   [ ] Figyelmeztető modális ablakok (Pop-up) a hibák kiértékeléséhez (pl. "Fast Ethernet limit észlelve").
+*   [x] Egybefüggő Dashboard tervezése, ahol mindhárom teszt indítható. *(Sebességteszt képernyő, v0.1.10)*
+*   [x] Valós idejű kördiagram a csomagveszteség ábrázolására (zöld/sárga/piros zónákkal).
+*   [x] Valós idejű Line Chart a folyamatos ping modulhoz.
+*   [x] Figyelmeztető ~~modális ablakok~~ kiértékelő sorok a hibákhoz (pl. "Fast Ethernet limit"). *Pop-up helyett a mérés alatt, színezve (zöld/kék/sárga/piros) - így futás közben nem takar el semmit; a Gyorsjelentésbe [HIBA]/[FIGYELEM] jelzéssel kerül.*
 
 ### ⬜ Network Réteg és Protokollok
-*   [ ] **TCP Engine:** Többszálú letöltési logikát megírni a sávszélesség teszthez.
-*   [ ] **WebRTC DataChannel Engine:** Új, testreszabható WebRTC kliens modul létrehozása. Beállítani az `ordered = false` és `maxRetransmits = 0` értékeket az igazi UDP szimulációhoz.
-*   [ ] **ICMP / Ping Worker:** Egy `Coroutine` vagy `Background Service` létrehozása, ami 500ms-onként küld ICMP csomagot a Google DNS (`8.8.8.8`) vagy a helyi átjáró (Gateway) felé.
+*   [x] **TCP Engine:** Többszálú le- ÉS feltöltés (1/4/8 szál), felfutás-levágással, terhelés alatti késleltetéssel. *(speed/BandwidthTester.kt)*
+*   [~] **WebRTC DataChannel Engine:** natív WebRTC-hez saját szerver-párt (signaling + peer) kellene üzemeltetni, ezért: (1) **natív UDP-motor** ugyanazzal a viselkedéssel (újraküldés/sorrendezés nélkül, DNS-visszhanggal) *(speed/UdpStabilityTester.kt)*, (2) az eredeti **packetlosstest.com WebRTC-teszt a beépített böngészőben** egy gombbal.
+*   [x] **ICMP / Ping Worker:** Coroutine a teszt-motor scope-jában, 250/500/1000 ms-onként, átjáró / 8.8.8.8 / egyedi cél felé; ICMP híján TCP-tartalék. *(speed/ContinuousPinger.kt, IcmpPing.kt)*
 
 ### ⬜ Kiértékelő és Diagnosztikai Logika (Üzleti Logika)
-*   [ ] **Sebesség ellenőrző algoritmus:**
+*   [x] **Sebesség ellenőrző algoritmus:** *(speed/SpeedAnalyzer.kt - a p90 "plafon" 86-97 Mbps sávban; az előfizetésen túl a link-sebességet is figyeli, és ha nincs előfizetés megadva, akkor is figyelmeztet)*
     ```kotlin
     if (downloadSpeed in 90.0..96.0 && userContractSpeed > 100) {
         triggerWarning(WarningType.FAST_ETHERNET_LIMIT)
     }
     ```
-*   [ ] **Csomagveszteség kalkulátor:** Jitter és Packet Loss adatok valós idejű aggregálása 1 másodperces ablakokban.
-*   [ ] **Statisztika generálás:** A teszt végén összesített riport készítése (Min/Max/Avg Ping, Jitter, Összes veszteség, Diagnózis).
+*   [x] **Csomagveszteség kalkulátor:** Jitter (RFC 3550) és Packet Loss valós idejű aggregálása 1 másodperces ablakokban.
+*   [x] **Statisztika generálás:** Összesített riport (Min/Max/Avg, Jitter, veszteség, diagnózis) - átirat a `log/tests/` alá, összefoglaló a Gyorsjelentésbe, előzmény hálózatonként (`profiles/speedtests.json`).
 
 ### ⬜ Hardver- és Rendszer-hozzáférések
-*   [ ] `android.permission.INTERNET` és `android.permission.ACCESS_NETWORK_STATE` engedélyek bekötése.
-*   [ ] Ethernet kapcsolat típus detektálása (`NetworkCapabilities.TRANSPORT_ETHERNET`), hogy figyelmeztesse a felhasználót, ha Wi-Fi-n próbál kábelt tesztelni.
+*   [x] `android.permission.INTERNET` és `android.permission.ACCESS_NETWORK_STATE` engedélyek bekötése. *(már korábban megvolt)*
+*   [x] Ethernet kapcsolat típus detektálása (`NetworkCapabilities.TRANSPORT_ETHERNET`) - figyelmeztetés, ha WiFi-n próbál kábelt tesztelni.
 
 ---
 *Megjegyzés Claude számára: A kód megírásakor ügyelj a hálózati hívások aszinkron kezelésére (Kotlin Coroutines / Dispatchers.IO), hogy a UI ne fagyjon le a folyamatos ping vagy a WebRTC adatfolyam alatt.*
+
+---
+
+## 4. Megvalósítás v0.1.10 - a specifikáción TÚL (a felhasználói kérés alapján)
+
+*   [x] **Következetes kiértékelés a már ismert adatokhoz képest:** előfizetett sebesség (hálózatonként megadható), WiFi PHY le/fel sebesség + sáv + jelerősség, vezetékes link-sebesség (ha olvasható), a saját korábbi mérések mediánja (azonos hálózat + kapcsolat-típus + szerver).
+*   [x] **Bufferbloat** (terhelés alatti késleltetés-növekedés, A+..F osztályzat).
+*   [x] **LAN-mérés külön kapcsolóval:** átjáró + DNS + a korábbi felderítő tesztek által látott eszközök; kis/nagy ping, veszteség, becsült útvonal-sebesség (kísérleti), kilógó eszközök jelölése.
+*   [x] **Gyártó-specifikus port-sebesség lista** (`Android/app/src/main/assets/device_speed_catalog.json`), bővíthető: saját bejegyzés a "LISTÁBA" gombbal, a saját mérések automatikusan (`profiles/device_speeds_user.json`).
+*   [x] **Windows `SpeedServer.ps1`** (Launcher 15.): valódi LAN-áteresztés mérése telefon ↔ PC között.
+
+## 5. Ajánlott további bővítések (még NINCS kész)
+
+*   [ ] **iperf3-kliens** az appban - ha a hálózaton van iperf3-szerver (NAS, router, PC), szabványos LAN-mérés.
+*   [ ] **MTU / fragmentáció teszt** (ping "don't fragment" + csökkenő méret) - PPPoE/VPN MTU-hibák kimutatására.
+*   [ ] **Időzített sebességteszt** (pl. óránként M1 + M2) és napszak szerinti grafikon - a szolgáltatói "esti lassulás" dokumentálására.
+*   [ ] **Router-lekérdezés (SNMP ifSpeed / UPnP)**: a router WAN- és LAN-portjainak kapcsolt sebessége közvetlenül (ahol a router engedi).
+*   [ ] **Traceroute-szerű ugrás-elemzés** (TTL-lel növelt ping, ahol a rendszer-ping támogatja) - hol nő meg a késleltetés az útvonalon.
+*   [ ] **A saját bejegyzések visszavezetése** a repó listájába (export gomb a `device_speeds_user.json`-ból), és a Windows-oldal (NetworkDiag/MinerStatus) is használja ugyanezt a listát.

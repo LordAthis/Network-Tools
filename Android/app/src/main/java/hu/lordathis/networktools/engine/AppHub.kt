@@ -1,4 +1,4 @@
-// Verzio: v0.6.3 - 2026-09-24
+// Verzio: v0.7.0 - 2026-09-27
 package hu.lordathis.networktools.engine
 
 import android.app.Application
@@ -21,6 +21,9 @@ import hu.lordathis.networktools.profiles.ProfileDevice
 import hu.lordathis.networktools.profiles.ProfileMatch
 import hu.lordathis.networktools.profiles.ProfileStore
 import hu.lordathis.networktools.settings.AppPreferences
+import hu.lordathis.networktools.speed.DeviceSpeedCatalog
+import hu.lordathis.networktools.speed.SpeedStore
+import hu.lordathis.networktools.speed.SpeedTestController
 import hu.lordathis.networktools.storage.AppStorage
 import hu.lordathis.networktools.storage.BackupManager
 import hu.lordathis.networktools.storage.BackupStatus
@@ -147,6 +150,10 @@ class AppHub(application: Application) : AndroidViewModel(application) {
     val quickReportForCurrentNetwork: StateFlow<List<TestRunSummary>> = quickReportState.asStateFlow()
 
     private val testScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Sebességteszt: előfizetés, előzmények, a felderítő tesztek által látott LAN-eszközök (profiles/). */
+    private val speedStore = SpeedStore(storage.profilesDir)
+
     private val testEngine = TestEngine(
         testLogDir = storage.testLogDir,
         quickReportStore = quickReportStore,
@@ -157,8 +164,26 @@ class AppHub(application: Application) : AndroidViewModel(application) {
         currentNetworkLogName = { quickCheckState.value.networkLogName },
         onAppLog = { log(it) },
         onSummaryRecorded = { refreshQuickReport() },
+        onHostsObserved = { hosts -> speedStore.mergeLanHosts(quickCheckState.value.networkKey, hosts) },
     )
     val testJobs: StateFlow<List<TestJob>> = testEngine.jobs
+
+    /**
+     * Sebességteszt modul (M1 sávszélesség, M2 stabilitás, M3 kábelteszt, LAN-mérés). A gyártó-specifikus
+     * port-sebesség lista: assets/device_speed_catalog.json + a saját bővítések (profiles/device_speeds_user.json).
+     */
+    val speed = SpeedTestController(
+        context = appContext,
+        identity = networkIdentity,
+        prefs = prefs,
+        engine = testEngine,
+        store = speedStore,
+        catalog = DeviceSpeedCatalog(appContext, File(storage.profilesDir, "device_speeds_user.json")),
+        scope = testScope,
+        networkKey = { quickCheckState.value.networkKey },
+        networkName = { quickCheckState.value.activeProfile?.displayName ?: quickCheckState.value.networkLogName },
+        log = { log(it) },
+    )
 
     private val lastAutoRunState = MutableStateFlow(prefs.lastAutoTestsRunMs)
     /** Az automatikus tesztek legutóbbi lefutása - a jobb fiók Gyorsjelentés ikonjának "friss" jelzéséhez. */

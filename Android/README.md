@@ -1,4 +1,4 @@
-<!-- Verzio: v0.6.0 - 2026-09-24 -->
+<!-- Verzio: v0.7.0 - 2026-09-27 -->
 # Network Tool's - Android
 
 A Network-Tools projekt Android változata (Kotlin + Jetpack Compose, minSdk 26). Ebben a körben az UI-váz mellé bekerült egy
@@ -58,6 +58,35 @@ Az eredmény (lásd fent) megerősítette, hogy nem olvasható.
 traceroute root nélkül nem (vagy csak részlegesen) érhető el egy telepített appból - ezt a
 `Network-Tools_feladatlista_es_halozati_tesztek.md` dokumentum részletesen indokolja.
 
+## Sebességteszt (v0.1.10 - a `to-dos_tasks.md` alapján)
+
+A jobb fiók **Sebességteszt** gombja. Minden rész a teszt-motor keretében fut (élő kimenet a Kezdőlapon,
+átirat a `log/tests/` alá, összefoglaló a Gyorsjelentésbe), és **a már ismert adatokhoz képest értékel**:
+
+- **Kapcsolat és várható plafon**: WiFi PHY-sebesség (le/fel), sáv, szabvány, jelerősség; vezetékesnél a
+  link-sebesség (ha a rendszer engedi olvasni); **előfizetett sebesség hálózatonként** megadható.
+- **M1 Sávszélesség**: többszálú (1/4/8) TCP le- és feltöltés (Cloudflare `speed.cloudflare.com`, egyedi URL,
+  vagy LAN-os PC), az első ~2 s felfutás nélkül; **terhelés alatti késleltetés (bufferbloat, A+..F)**.
+  Kiértékelés: **Fast Ethernet (~94 Mbps plafon) kábelhiba-jelzés**, előfizetéshez / WiFi-linkhez /
+  a saját korábbi mérések mediánjához viszonyítva.
+- **M2 Stabilitás (UDP)**: nyers UDP-csomagok újraküldés nélkül (a WebRTC `ordered:false, maxRetransmits:0`
+  natív megfelelője) - a visszhangot DNS-válasz adja (router / 1.1.1.1 / 8.8.8.8), a csomagméret EDNS0-paddinggel
+  állítva. Presetek: Általános 30/60 s, VoIP (50 csomag/s, ~172 B), Gaming (változó ráta/méret). Csomagvesztés,
+  RTT, jitter (RFC 3550), 1 s-os ablakok, zöld/sárga/piros kördiagram. Az eredeti WebRTC-teszt
+  (packetlosstest.com) egy gombbal a beépített böngészőben nyílik.
+- **M3 Kábelteszt**: végtelenített ping (250/500/1000 ms) STOP gombig, élő vonaldiagram, kiesésnél piros sáv +
+  hangjelzés; figyelmeztet, ha nem vezetékes kapcsolaton fut. ICMP a rendszer `ping`-jével, ha nem elérhető,
+  TCP-kapcsolódásos mérés.
+- **LAN-mérés (külön kapcsolóval, alapból KI)**: az átjáró, a DNS és a korábbi Felderítés/Szolgáltatások/Miner
+  tesztek által látott eszközök (`profiles/lan_hosts.json`) mérése kis és nagy (1400 B) pinggel; a kettő
+  különbségéből **becsült útvonal-sebesség** (kísérleti), a többi eszközhöz képest kilógók jelölése, és a
+  **gyártó-specifikus port-sebesség lista** (`assets/device_speed_catalog.json`) szerinti várható plafon.
+  Az eredmények automatikusan a saját listába kerülnek (`profiles/device_speeds_user.json` → `measured`),
+  a "LISTÁBA" gombbal pedig új gyártói bejegyzés vehető fel (→ `entries`). A bevált saját bejegyzéseket
+  érdemes a repó `device_speed_catalog.json` fájljába is átvezetni.
+- **Valódi LAN-áteresztés egy PC-hez**: a PC-n a `win/SpeedServer.ps1` (Launcher 15.) fut, a telefonon a címét
+  megadva az M1 motor a PC-hez képest mér.
+
 ## Hálózat-kényszerítés és hálózati profilok (ÚJ)
 
 - **Hálózat-kényszerítés**: Android 10+ óta egy app nem tudja ki/bekapcsolni a WiFi/mobilnet rádiót - az alsó ikonok és a
@@ -80,7 +109,7 @@ traceroute root nélkül nem (vagy csak részlegesen) érhető el egy telepítet
 | Gyorsjelentés (jobb fiók) | működik: a Kezdőlap két kártyája teljes képernyőn |
 | Napló | működik (napi naplófájlok, mentés fájlba) |
 | Mentés | működik: log-doboz + korábbi mentések listája (CSV-ben) + naplófájl-törlés egy helyen |
-| Sebességteszt | "kidolgozás alatt" - csak a gomb és a panel váza kész |
+| Sebességteszt | működik (v0.1.10): M1 sávszélesség, M2 stabilitás/csomagvesztés, M3 kábelteszt, LAN-mérés - lásd lent |
 | Külső szolgáltatások | "kidolgozás alatt" - a Beállításokban már van API-kulcs/MCP-cím mező hozzá |
 | Webolvasó | működik: egyszerűsített beépített böngésző (WebView), csak http(s) |
 | Beállítások | lásd lent |

@@ -1,4 +1,4 @@
-# Verzio: v0.1.0 - 2026-09-21
+# Verzio: v0.2.0 - 2026-09-27
 # Az Android/ mappa debug APK-jat epiti. Csak akkor fut, ha az
 # Android/ vagy ez a fajl valtozik (vagy kezzel: Actions -> Android build -> Run workflow).
 name: Android build
@@ -37,7 +37,19 @@ jobs:
           gradle-version: "8.7"
 
       - name: Build debug APK
-        run: gradle assembleDebug --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --stacktrace 2>&1 | tee build.log
+
+      # Forditasi hiba eseten a Kotlin/Gradle hibasorok "annotaciokent" is megjelennek (a run
+      # osszesitojen es a nyilvanos check-run API-n is), igy a teljes log letoltese nelkul
+      # latszik, mi a hiba.
+      - name: Report compile errors as annotations
+        if: failure()
+        run: |
+          grep -E "^e: |error:|What went wrong|FAILED" build.log | head -60 | while IFS= read -r line; do
+            echo "::error::${line}"
+          done || true
 
       # Az APK fajlneve ALLANDO (NetworkTools.apk) - a verzio az appban (fejlec/Nevjegy) es a naplokban latszik.
       - name: Name APK

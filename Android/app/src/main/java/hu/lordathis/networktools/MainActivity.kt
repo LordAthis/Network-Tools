@@ -1,4 +1,4 @@
-// Verzio: v0.6.1 - 2026-09-24
+// Verzio: v0.7.0 - 2026-09-27
 package hu.lordathis.networktools
 
 import android.Manifest
@@ -81,6 +81,7 @@ import hu.lordathis.networktools.ui.RightDrawerPanel
 import hu.lordathis.networktools.ui.SettingsActions
 import hu.lordathis.networktools.ui.SettingsStripedPanel
 import hu.lordathis.networktools.ui.SettingsUiState
+import hu.lordathis.networktools.ui.SpeedTestStripedPanel
 import hu.lordathis.networktools.ui.Skin
 import hu.lordathis.networktools.ui.StarField
 import hu.lordathis.networktools.ui.SyncStripedPanel
@@ -159,6 +160,7 @@ private fun NetworkToolsApp(hub: AppHub) {
     val testJobs by hub.testJobs.collectAsState()
     val forcedTransport by hub.forcedTransport.collectAsState()
     val exportHistory by hub.exportHistory.collectAsState()
+    val speedState by hub.speed.state.collectAsState()
     val testGroups = remember { TestCatalog.groups(context) }
 
     // Fiókok: a nyitottság a panel szélességéhez viszonyított, szinkron állapot.
@@ -669,7 +671,38 @@ private fun NetworkToolsApp(hub: AppHub) {
                             }
 
                             Screen.SPEED_TEST -> {
-                                WorkInProgressStripedPanel(modifier = Modifier.fillMaxWidth().weight(1f), title = "SEBESSÉGTESZT")
+                                SpeedTestStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    state = speedState,
+                                    jobs = testJobs,
+                                    prefs = prefs,
+                                    onRefresh = { hub.speed.refresh() },
+                                    onSaveContract = { down, up ->
+                                        hub.speed.saveContract(down, up)
+                                        toast("Előfizetett sebesség mentve.")
+                                    },
+                                    onStartBandwidth = { cfg ->
+                                        if (!hub.speed.startBandwidth(cfg)) toast("A sávszélesség-teszt már fut.")
+                                    },
+                                    onStartStability = { preset, target ->
+                                        if (!hub.speed.startStability(preset, target)) toast("A stabilitás-teszt már fut.")
+                                    },
+                                    onStartPing = { target, interval, sound ->
+                                        if (!hub.speed.startPing(target, interval, sound)) toast("A kábelteszt már fut.")
+                                    },
+                                    onStop = { id -> hub.speed.stop(id) },
+                                    onStartLan = {
+                                        if (!hub.speed.startLan()) toast("A LAN-mérés már fut.")
+                                    },
+                                    onAddCatalogEntry = { d ->
+                                        hub.speed.addUserCatalogEntry(d.vendor, d.model, d.category, d.portMbps, d.wifiMbps, d.keyword, d.notes)
+                                        toast("Felvéve a saját gyártói listába: ${d.vendor} ${d.model}")
+                                    },
+                                    onOpenWebRtcTest = {
+                                        webReaderUrl = "https://packetlosstest.com/"
+                                        screen = Screen.WEB_READER
+                                    },
+                                )
                             }
 
                             Screen.EXTERNAL_SERVICES -> {

@@ -1,4 +1,4 @@
-// Verzio: v0.5.1 - 2026-09-24
+// Verzio: v0.6.0 - 2026-09-27
 package hu.lordathis.networktools.engine
 
 import hu.lordathis.networktools.network.ArpProbe
@@ -15,8 +15,11 @@ import hu.lordathis.networktools.network.PortScanner
 import hu.lordathis.networktools.network.SnmpProbe
 import hu.lordathis.networktools.network.SshBannerProbe
 import hu.lordathis.networktools.settings.AppPreferences
+import hu.lordathis.networktools.speed.LanHostInfo
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +29,7 @@ import java.io.File
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * A hálózati tesztek FUTTATÓ MOTORJA. Minden teszt a hívó (AppHub) SAJÁT, hosszú életű scope-jában
@@ -49,30 +53,65 @@ class TestEngine(
     private val onAppLog: (String) -> Unit,
     /** Minden rögzített összefoglaló után hívódik - az AppHub ezzel frissíti AZONNAL a Gyorsjelentést. */
     private val onSummaryRecorded: () -> Unit = {},
+    /**
+     * A felderítő tesztek (ping-sweep, hostname, SNMP, HTTP-cím, SSH-banner, miner API) által látott
+     * LAN-eszközök - a Sebességteszt LAN-mérése ezekből választ célpontot (SpeedStore.lan_hosts.json).
+     */
+    private val onHostsObserved: (List<LanHostInfo>) -> Unit = {},
 ) {
     private val jobsState = MutableStateFlow<List<TestJob>>(emptyList())
     val jobs: StateFlow<List<TestJob>> = jobsState.asStateFlow()
+
+    /** A futó tesztek korutinjai (testId -> Job) - a STOP (pl. folyamatos ping) ezen keresztül állítja le. */
+    private val activeJobs = ConcurrentHashMap<String, Job>()
 
     fun isRunning(testId: String): Boolean = jobsState.value.any { it.testId == testId && it.status == JobStatus.RUNNING }
 
     /** Egy teszt elindítása; ha ugyanaz a teszt már fut, nem indít másodikat. */
     fun start(testId: String, label: String, shortCode: String) {
-        if (isRunning(testId)) return
+        startCustom(testId, label, shortCode) { emit -> dispatch(testId, emit) }
+    }
+
+    /**
+     * Tetszőleges teszt-blokk futtatása ugyanazzal a kerettel (élő terminál, átirat a log/tests/ alá,
+     * Gyorsjelentés-összefoglaló). A Sebességteszt modul ezt használja. [cancelHeadline]: leállításkor
+     * (STOP) ez kerül a Gyorsjelentésbe - így a végtelenített teszt is értelmes összefoglalót kap.
+     */
+    fun startCustom(
+        testId: String,
+        label: String,
+        shortCode: String,
+        cancelHeadline: (() -> String)? = null,
+        block: suspend (emit: (String) -> Unit) -> String,
+    ): Boolean {
+        if (isRunning(testId)) return false
         val jobId = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
         jobsState.update { it + TestJob(jobId, testId, label, shortCode, JobStatus.RUNNING, now) }
-        scope.launch(Dispatchers.IO) {
+        val job = scope.launch(Dispatchers.IO) {
             var headline = "Befejezve."
             var status = JobStatus.DONE
             try {
-                headline = dispatch(testId) { line -> appendLine(jobId, line) }
+                headline = block { line -> appendLine(jobId, line) }
+            } catch (e: CancellationException) {
+                headline = cancelHeadline?.let { runCatching { it() }.getOrNull() } ?: "Leállítva."
+                appendLine(jobId, "Leállítva. $headline")
             } catch (e: Exception) {
                 appendLine(jobId, "HIBA: ${e.message ?: e.javaClass.simpleName}")
                 headline = "Hiba: ${e.message ?: e.javaClass.simpleName}"
                 status = JobStatus.FAILED
+            } finally {
+                activeJobs.remove(testId)
             }
             finish(jobId, status, testId, label, shortCode, headline)
         }
+        activeJobs[testId] = job
+        return true
+    }
+
+    /** Egy futó teszt leállítása (a teszt a leállításig gyűjtött adatokkal zárul). */
+    fun stop(testId: String) {
+        activeJobs[testId]?.cancel()
     }
 
     fun clearFinished() {
@@ -82,7 +121,9 @@ class TestEngine(
     private fun appendLine(jobId: String, line: String) {
         val stamp = LocalDateTime.now().format(TIME_FORMAT)
         jobsState.update { list ->
-            list.map { if (it.jobId == jobId) it.copy(lines = it.lines + "[$stamp] $line") else it }
+            list.map {
+                if (it.jobId == jobId) it.copy(lines = (it.lines + "[$stamp] $line").takeLast(MAX_JOB_LINES)) else it
+            }
         }
     }
 
@@ -230,6 +271,8 @@ class TestEngine(
             if (done % 50 == 0 || done == total) emit("...vizsgálva: $done/$total")
         }
         emit("Kész: ${alive.size} élő host a(z) ${hosts.size}-ból.")
+        val seenAt = System.currentTimeMillis()
+        observe(alive.map { LanHostInfo(ip = it, lastSeenMs = seenAt) })
         return "${alive.size} élő host"
     }
 
@@ -243,13 +286,16 @@ class TestEngine(
             return "Nincs élő host"
         }
         var resolved = 0
+        val seen = ArrayList<LanHostInfo>()
         for (host in hosts) {
             val name = HostInfo.reverseLookup(host)
             if (name != null) {
                 emit("$host -> $name")
                 resolved++
             }
+            seen += LanHostInfo(ip = host, hostname = name, lastSeenMs = System.currentTimeMillis())
         }
+        observe(seen)
         emit("Kész: $resolved/${hosts.size} host kapott nevet.")
         return "$resolved/${hosts.size} host nevesítve"
     }
@@ -263,6 +309,8 @@ class TestEngine(
             if (result != null) {
                 emit("$host - SNMP válasz: ${result.sysDescr ?: result.sysName ?: "(üres)"}")
                 found++
+                val descr = listOfNotNull(result.sysName, result.sysDescr).joinToString(" ").ifBlank { null }
+                observe(listOf(LanHostInfo(ip = host, snmpDescr = descr, lastSeenMs = System.currentTimeMillis())))
             }
         }
         emit("Kész: $found eszköz válaszolt SNMP-re a(z) ${hosts.size} élő hostból.")
@@ -326,6 +374,7 @@ class TestEngine(
                 if (title != null) {
                     emit("$host:$port - \"$title\"")
                     found++
+                    observe(listOf(LanHostInfo(ip = host, httpTitle = title, lastSeenMs = System.currentTimeMillis())))
                 }
             }
         }
@@ -342,6 +391,7 @@ class TestEngine(
             if (banner != null) {
                 emit("$host - $banner")
                 found++
+                observe(listOf(LanHostInfo(ip = host, sshBanner = banner, lastSeenMs = System.currentTimeMillis())))
             }
         }
         emit("Kész: $found SSH-szolgáltatás.")
@@ -357,6 +407,7 @@ class TestEngine(
             if (result != null) {
                 emit("$host:${result.port} - miner API válaszolt (${result.rawResponse.take(120)})")
                 found++
+                observe(listOf(LanHostInfo(ip = host, minerInfo = result.rawResponse.take(300), lastSeenMs = System.currentTimeMillis())))
             }
         }
         emit("Kész: $found valószínű miner.")
@@ -402,6 +453,15 @@ class TestEngine(
     }
 
     // ------------------------------------------------------------------ Segédek
+
+    private fun observe(hosts: List<LanHostInfo>) {
+        if (hosts.isEmpty()) return
+        try {
+            onHostsObserved(hosts)
+        } catch (e: Exception) {
+            onAppLog("LAN-eszközlista frissítése sikertelen: ${e.message}")
+        }
+    }
 
     /** A jelenlegi (WiFi/Ethernet) hálózat /24-es célpontjai + a Hálózati beállításokban megadott extra alhálók. */
     private fun targetHosts(emit: (String) -> Unit): List<String>? {
@@ -457,5 +517,8 @@ class TestEngine(
     companion object {
         private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss")
         private val FILE_STAMP: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")
+
+        /** Egy job terminál-sorainak felső korlátja (a végtelenített tesztek, pl. folyamatos ping miatt). */
+        private const val MAX_JOB_LINES = 3000
     }
 }
