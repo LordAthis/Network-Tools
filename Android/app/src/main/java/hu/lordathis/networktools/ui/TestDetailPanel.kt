@@ -1,4 +1,4 @@
-// Verzio: v0.1.0 - 2026-09-27
+// Verzio: v0.1.1 - 2026-09-28
 package hu.lordathis.networktools.ui
 
 import androidx.compose.foundation.border
@@ -106,8 +106,8 @@ internal fun TestDetailStripedPanel(
                 } else {
                     rows.forEach { (h, value) ->
                         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                            Text(h.ip, color = AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(96.dp))
-                            Text(value, color = TextMain, fontSize = 10.sp, maxLines = 3)
+                            LinkifiedText(h.ip, color = AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(96.dp))
+                            LinkifiedText(value, color = TextMain, fontSize = 10.sp, maxLines = 3)
                         }
                     }
                 }
@@ -131,7 +131,7 @@ internal fun TestDetailStripedPanel(
                 if (lines.isEmpty()) {
                     Text("Még nincs kimenet.", color = TextDim, fontSize = 10.sp)
                 } else {
-                    lines.takeLast(300).forEach { Text(it, color = Accent, fontSize = 9.sp) }
+                    lines.takeLast(300).forEach { LinkifiedText(it, color = Accent, fontSize = 9.sp) }
                 }
             }
             Spacer(Modifier.height(8.dp))

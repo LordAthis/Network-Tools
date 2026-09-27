@@ -1,4 +1,4 @@
-// Verzio: v0.6.1 - 2026-09-24
+// Verzio: v0.7.0 - 2026-09-28
 package hu.lordathis.networktools.ui
 
 import androidx.compose.foundation.border
@@ -87,6 +87,8 @@ internal data class SettingsUiState(
     // --- Külső szolgáltatók (AI API / MCP) ---
     val externalApiKey: String,
     val externalMcpServer: String,
+    // --- Linkek kezelése: "INTERNAL" | "EXTERNAL" | "ASK" ---
+    val linkMode: String = "INTERNAL",
 )
 
 /** A Beállítások panel eseményei. */
@@ -128,6 +130,7 @@ internal data class SettingsActions(
     // --- Külső szolgáltatók ---
     val onExternalApiKeyChange: (String) -> Unit,
     val onExternalMcpServerChange: (String) -> Unit,
+    val onLinkModeChange: (String) -> Unit = {},
 )
 
 /** Keretes beállítás-szakasz: felirat + tartalom, belső kerettel. */
@@ -231,7 +234,13 @@ private fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Uni
 }
 
 @Composable
-internal fun SettingsStripedPanel(modifier: Modifier, ui: SettingsUiState, act: SettingsActions) {
+internal fun SettingsStripedPanel(
+    modifier: Modifier,
+    ui: SettingsUiState,
+    act: SettingsActions,
+    /** További, önálló szakaszok (pl. Linkelés) - a Hálózati beállítások után jelennek meg. */
+    extraSections: @Composable () -> Unit = {},
+) {
     StripedPanel(
         modifier = modifier,
         topStripe = StripeSpec("BEÁLLÍTÁSOK", enabled = false, onClick = null)
@@ -249,6 +258,12 @@ internal fun SettingsStripedPanel(modifier: Modifier, ui: SettingsUiState, act: 
                 ChoiceRow("Alapértelmezett (a rendszer színe)", ui.skin == Skin.SYSTEM) { act.onSkinChange(Skin.SYSTEM) }
                 ChoiceRow("Sötét", ui.skin == Skin.DARK) { act.onSkinChange(Skin.DARK) }
                 ChoiceRow("Világos", ui.skin == Skin.LIGHT) { act.onSkinChange(Skin.LIGHT) }
+                Spacer(Modifier.height(8.dp))
+                Text("Linkek kezelése (IP-címek, web-címek az appban)", color = TextDim, fontSize = 10.sp)
+                Spacer(Modifier.height(4.dp))
+                ChoiceRow("Belső - a saját Webolvasóban (alapértelmezett)", ui.linkMode == "INTERNAL") { act.onLinkModeChange("INTERNAL") }
+                ChoiceRow("Külső - a telefon böngészőjében", ui.linkMode == "EXTERNAL") { act.onLinkModeChange("EXTERNAL") }
+                ChoiceRow("Kérdez - minden alkalommal megkérdezi", ui.linkMode == "ASK") { act.onLinkModeChange("ASK") }
             }
 
             // ---------------------------------------------------------------- Háttérben futás
@@ -457,6 +472,8 @@ internal fun SettingsStripedPanel(modifier: Modifier, ui: SettingsUiState, act: 
             }
 
             // ---------------------------------------------------------------- Automatikus tesztek
+            extraSections()
+
             SettingsSection("AUTOMATIKUS TESZTEK") {
                 Text(
                     "Az egyszerű, gyors tesztek (adapter/IP-infó, publikus IP, CGNAT, IPv6, eszközinfó, " +

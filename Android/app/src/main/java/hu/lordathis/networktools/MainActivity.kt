@@ -1,4 +1,4 @@
-// Verzio: v0.8.0 - 2026-09-27
+// Verzio: v0.9.0 - 2026-09-28
 package hu.lordathis.networktools
 
 import android.Manifest
@@ -33,7 +33,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -84,6 +86,8 @@ import hu.lordathis.networktools.ui.SettingsUiState
 import hu.lordathis.networktools.ui.SpeedTestStripedPanel
 import hu.lordathis.networktools.ui.MinersStripedPanel
 import hu.lordathis.networktools.ui.TestDetailStripedPanel
+import hu.lordathis.networktools.ui.LinkSettingsSection
+import hu.lordathis.networktools.ui.LocalOpenLink
 import hu.lordathis.networktools.ui.Skin
 import hu.lordathis.networktools.ui.StarField
 import hu.lordathis.networktools.ui.SyncStripedPanel
@@ -178,6 +182,11 @@ private fun NetworkToolsApp(hub: AppHub) {
         }
     }
     var detailTestId by rememberSaveable { mutableStateOf<String?>(null) }
+    // Linkek kezelése (Beállítások > Általános): INTERNAL (saját Webolvasó) | EXTERNAL | ASK
+    var linkMode by remember { mutableStateOf(prefs.linkMode) }
+    var pendingLink by remember { mutableStateOf<String?>(null) }
+    // Minden "belső" link-megnyitás új Webolvasó-példányt kér (így akkor is betölt, ha már a Webolvasón vagyunk).
+    var webReaderOpenCount by remember { mutableIntStateOf(0) }
     val testGroups = remember { TestCatalog.groups(context) }
 
     // Fiókok: a nyitottság a panel szélességéhez viszonyított, szinkron állapot.
@@ -196,6 +205,31 @@ private fun NetworkToolsApp(hub: AppHub) {
     var webReaderUrl by rememberSaveable { mutableStateOf("") }
 
     fun toast(message: String) = Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+
+    fun openInternal(url: String) {
+        webReaderUrl = url
+        webReaderOpenCount++
+        screen = Screen.WEB_READER
+        leftDrawer.close()
+        rightDrawer.close()
+    }
+
+    fun openExternal(url: String) {
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (e: ActivityNotFoundException) {
+            toast("Nincs böngésző a telefonon - a saját Webolvasóban nyitom meg.")
+            openInternal(url)
+        }
+    }
+
+    val openLink: (String) -> Unit = { url ->
+        when (linkMode) {
+            "EXTERNAL" -> openExternal(url)
+            "ASK" -> pendingLink = url
+            else -> openInternal(url)
+        }
+    }
 
     var pendingDeleteNote by remember { mutableStateOf<NoteItem?>(null) }
     var pendingDeleteLog by remember { mutableStateOf<String?>(null) }
@@ -368,6 +402,7 @@ private fun NetworkToolsApp(hub: AppHub) {
     val statusText = "Háttérben futás: " + if (backgroundRun) "BE" else "KI"
 
     NetworkToolsTheme(skin) {
+      CompositionLocalProvider(LocalOpenLink provides openLink) {
         Surface(color = BgBottom, modifier = Modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
@@ -442,6 +477,7 @@ private fun NetworkToolsApp(hub: AppHub) {
                                         autoTestsIntervalMinutes = autoTestsIntervalMinutes,
                                         externalApiKey = externalApiKey,
                                         externalMcpServer = externalMcpServer,
+                                        linkMode = linkMode,
                                     ),
                                     act = SettingsActions(
                                         onSkinChange = {
@@ -626,11 +662,16 @@ private fun NetworkToolsApp(hub: AppHub) {
                                             externalApiKey = it
                                             prefs.externalApiKey = it
                                         },
+                                        onLinkModeChange = {
+                                            linkMode = it
+                                            prefs.linkMode = it
+                                        },
                                         onExternalMcpServerChange = {
                                             externalMcpServer = it
                                             prefs.externalMcpServer = it
                                         },
-                                    )
+                                    ),
+                                    extraSections = { LinkSettingsSection(hub.link, prefs) },
                                 )
                             }
 
@@ -715,10 +756,7 @@ private fun NetworkToolsApp(hub: AppHub) {
                                         hub.speed.addUserCatalogEntry(d.vendor, d.model, d.category, d.portMbps, d.wifiMbps, d.keyword, d.notes)
                                         toast("Felvéve a saját gyártói listába: ${d.vendor} ${d.model}")
                                     },
-                                    onOpenWebRtcTest = {
-                                        webReaderUrl = "https://packetlosstest.com/"
-                                        screen = Screen.WEB_READER
-                                    },
+                                    onOpenWebRtcTest = { openInternal("https://packetlosstest.com/") },
                                 )
                             }
 
@@ -751,10 +789,7 @@ private fun NetworkToolsApp(hub: AppHub) {
                                     onQuery = { ips ->
                                         if (!hub.queryMiners(ips)) toast("A miner-lekérdezés már fut.")
                                     },
-                                    onOpenWeb = { url ->
-                                        webReaderUrl = url
-                                        screen = Screen.WEB_READER
-                                    },
+                                    onOpenWeb = { url -> openLink(url) },
                                 )
                             }
 
@@ -773,12 +808,19 @@ private fun NetworkToolsApp(hub: AppHub) {
                             }
 
                             Screen.WEB_READER -> {
-                                WebReaderStripedPanel(
-                                    modifier = Modifier.fillMaxWidth().weight(1f),
-                                    startUrl = webReaderUrl,
-                                    onUrlChange = { webReaderUrl = it },
-                                    onLog = { hub.log(it) }
-                                )
+                                key(webReaderOpenCount) {
+                                    WebReaderStripedPanel(
+                                        modifier = Modifier.fillMaxWidth().weight(1f),
+                                        startUrl = webReaderUrl,
+                                        onUrlChange = { webReaderUrl = it },
+                                        onLog = { hub.log(it) },
+                                        onVisited = { url, title -> hub.recordWebVisit(url, title) },
+                                        onTitle = { url, title -> hub.updateWebTitle(url, title) },
+                                        loadAddresses = { currentOnly -> hub.loadAddresses(currentOnly) },
+                                        deleteAddress = { entry -> hub.deleteAddress(entry) },
+                                        loadSshInfo = { hub.loadSshInfo() },
+                                    )
+                                }
                             }
                         }
                     }
@@ -922,7 +964,27 @@ private fun NetworkToolsApp(hub: AppHub) {
                         onDismiss = { confirmKeyDelete = false }
                     )
                 }
+                pendingLink?.let { url ->
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { pendingLink = null },
+                        title = { Text("Link megnyitása") },
+                        text = { Text(url, fontSize = 13.sp) },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                pendingLink = null
+                                openInternal(url)
+                            }) { Text("BELSŐ") }
+                        },
+                        dismissButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                pendingLink = null
+                                openExternal(url)
+                            }) { Text("KÜLSŐ") }
+                        },
+                    )
+                }
             }
         }
+      }
     }
 }

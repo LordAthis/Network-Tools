@@ -1,4 +1,4 @@
-// Verzio: v0.7.0 - 2026-09-27
+// Verzio: v0.8.0 - 2026-09-28
 package hu.lordathis.networktools.settings
 
 import android.content.Context
@@ -127,6 +127,38 @@ class AppPreferences(context: Context) {
         get() = prefs.getLong(KEY_LAST_AUTO_RUN, 0L)
         set(value) = prefs.edit().putLong(KEY_LAST_AUTO_RUN, value).apply()
 
+    // ------------------------------------------------------------------ Linkek kezelése
+
+    /**
+     * Hová nyíljanak a linkek (IP-címek, URL-ek) az appban: "INTERNAL" (a saját, beépített Webolvasó -
+     * alapértelmezett), "EXTERNAL" (a telefon böngészője) vagy "ASK" (minden alkalommal megkérdezi).
+     */
+    var linkMode: String
+        get() = prefs.getString(KEY_LINK_MODE, "INTERNAL") ?: "INTERNAL"
+        set(value) = prefs.edit().putString(KEY_LINK_MODE, value).apply()
+
+    // ------------------------------------------------------------------ Linkelés (app <-> app / win)
+
+    /** Ennek a telefonnak az állandó link-azonosítója (első használatkor generálódik). */
+    var linkNodeId: String
+        get() = prefs.getString(KEY_LINK_NODE_ID, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LINK_NODE_ID, value).apply()
+
+    /** A többi Network-Tools példány által látott név (alapból a telefon modellje). */
+    var linkNodeName: String
+        get() = prefs.getString(KEY_LINK_NODE_NAME, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LINK_NODE_NAME, value).apply()
+
+    /** Látható-e a telefon a többi példány számára (válaszol-e a bemutatkozásokra / pingekre) - alapból KI. */
+    var linkVisible: Boolean
+        get() = prefs.getBoolean(KEY_LINK_VISIBLE, false)
+        set(value) = prefs.edit().putBoolean(KEY_LINK_VISIBLE, value).apply()
+
+    /** Kézzel megadott távoli célok (IP / DDNS-név[:port]) a linkeléshez, soronként. */
+    var linkRemoteTargets: String
+        get() = prefs.getString(KEY_LINK_REMOTE, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_LINK_REMOTE, value).apply()
+
     // ------------------------------------------------------------------ Sebességteszt
 
     /** M1 szerver: "CLOUDFLARE" | "CUSTOM" | "LAN_SERVER". */
@@ -215,6 +247,11 @@ class AppPreferences(context: Context) {
         private const val KEY_AUTO_TESTS_ENABLED = "auto_tests_enabled"
         private const val KEY_AUTO_TESTS_INTERVAL = "auto_tests_interval"
         private const val KEY_LAST_AUTO_RUN = "last_auto_run"
+        private const val KEY_LINK_MODE = "link_mode"
+        private const val KEY_LINK_NODE_ID = "link_node_id"
+        private const val KEY_LINK_NODE_NAME = "link_node_name"
+        private const val KEY_LINK_VISIBLE = "link_visible"
+        private const val KEY_LINK_REMOTE = "link_remote_targets"
         private const val KEY_SPEED_SERVER = "speed_server"
         private const val KEY_SPEED_CUSTOM_URL = "speed_custom_url"
         private const val KEY_SPEED_LAN_SERVER = "speed_lan_server"

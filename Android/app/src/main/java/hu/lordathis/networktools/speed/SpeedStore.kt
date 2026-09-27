@@ -1,4 +1,4 @@
-// Verzio: v0.1.1 - 2026-09-27
+// Verzio: v0.1.2 - 2026-09-28
 package hu.lordathis.networktools.speed
 
 import org.json.JSONArray
@@ -68,6 +68,36 @@ class SpeedStore(private val dir: File) {
     fun lanHosts(networkKey: String): List<LanHostInfo> {
         val arr = readHostsRoot().optJSONObject("networks")?.optJSONArray(networkKey) ?: return emptyList()
         return (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let { o -> decodeHost(o) } }
+    }
+
+    /** Az ÖSSZES hálózat összes valaha látott eszköze (networkKey -> eszközlista) - a Webolvasó "könyv" listájához. */
+    @Synchronized
+    fun allLanHosts(): Map<String, List<LanHostInfo>> {
+        val networks = readHostsRoot().optJSONObject("networks") ?: return emptyMap()
+        val out = LinkedHashMap<String, List<LanHostInfo>>()
+        val keys = networks.keys()
+        while (keys.hasNext()) {
+            val k = keys.next()
+            val arr = networks.optJSONArray(k) ?: continue
+            out[k] = (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let { o -> decodeHost(o) } }
+        }
+        return out
+    }
+
+    /** Egy eszköz törlése egy hálózat listájából (a Webolvasó "könyv" listájának törlés gombja). */
+    @Synchronized
+    fun deleteLanHost(networkKey: String, ip: String) {
+        val root = readHostsRoot()
+        val networks = root.optJSONObject("networks") ?: return
+        val arr = networks.optJSONArray(networkKey) ?: return
+        val kept = JSONArray()
+        for (i in 0 until arr.length()) {
+            val o = arr.optJSONObject(i) ?: continue
+            if (o.optString("ip") != ip) kept.put(o)
+        }
+        if (kept.length() == 0) networks.remove(networkKey) else networks.put(networkKey, kept)
+        root.put("networks", networks)
+        write(hostsFile, root)
     }
 
     /** Új megfigyelések összefésülése a meglévőkkel (IP-cím szerint; az új, nem üres mező nyer). */

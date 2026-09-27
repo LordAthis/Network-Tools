@@ -1,4 +1,4 @@
-// Verzio: v0.1.1 - 2026-09-27
+// Verzio: v0.1.2 - 2026-09-28
 package hu.lordathis.networktools.ui
 
 import androidx.compose.foundation.Canvas
@@ -171,7 +171,10 @@ private fun ContextSection(state: SpeedUiState, onSaveContract: (Int?, Int?) -> 
                 link.wifiRssi?.let { InfoLine("Jelerősség", "$it dBm", if (it < -72) WarnColor else TextMain) }
             }
             if (link.isEthernet) InfoLine("Vezetékes link", link.ethernetMbps?.let { "$it Mbps" } ?: "a rendszer nem adja meg")
-            InfoLine("Átjáró / DNS", "${link.gateway ?: "?"} / ${link.dnsServers.joinToString(", ").ifBlank { "?" }}")
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Text("Átjáró / DNS:", color = TextDim, fontSize = 10.sp, modifier = Modifier.width(110.dp))
+                LinkifiedText("${link.gateway ?: "?"} / ${link.dnsServers.joinToString(", ").ifBlank { "?" }}", color = TextMain, fontSize = 10.sp)
+            }
             val realistic = when {
                 link.isEthernet && link.ethernetMbps != null -> "~${(link.ethernetMbps * 0.94).toInt()} Mbps (vezetékes link)"
                 link.isWifi && link.phyDownMbps != null ->
@@ -567,7 +570,7 @@ private fun LanRow(m: LanMeasurement, onAddToCatalog: (LanMeasurement) -> Unit) 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(m.label, color = TextMain, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text("${m.ip} · ${m.role}", color = TextDim, fontSize = 9.sp)
+                LinkifiedText("${m.ip} · ${m.role}", color = TextDim, fontSize = 9.sp)
             }
             PillButton("LISTÁBA", enabled = true, filled = false) { onAddToCatalog(m) }
         }

@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Verzio: v0.6.0 - 2026-09-27 -->
+<!-- Verzio: v0.7.0 - 2026-09-28 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Webolvasó (beépített böngésző), hálózati tesztek -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <!-- Linkelés: a helyi hálózati broadcast (HELLO) fogadásához egyes telefonokon multicast-zár kell -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
 
     <!-- A jelenlegi WiFi SSID/BSSID lekérdezéséhez Android ezt megköveteli (a rendszer szerint a
          WiFi-adatokból helyre lehetne következtetni) - CSAK a hálózat-azonosításhoz (profilok) kell,

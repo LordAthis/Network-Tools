@@ -1,4 +1,4 @@
-<!-- Verzio: v0.8.0 - 2026-09-27 -->
+<!-- Verzio: v0.9.0 - 2026-09-28 -->
 # Network Tool's - Android
 
 A Network-Tools projekt Android változata (Kotlin + Jetpack Compose, minSdk 26). Ebben a körben az UI-váz mellé bekerült egy
@@ -88,6 +88,18 @@ A jobb fiók **Sebességteszt** gombja. Minden rész a teszt-motor keretében fu
   érdemes a repó `device_speed_catalog.json` fájljába is átvezetni.
 - **Valódi LAN-áteresztés egy PC-hez**: a PC-n a `win/SpeedServer.ps1` (Launcher 15.) fut, a telefonon a címét
   megadva az M1 motor a PC-hez képest mér.
+
+## Linkek, Webolvasó-listák, Linkelés (v0.1.12)
+
+- **Kattintható címek:** az appban kiírt IP-címek és URL-ek (teszt-kimenet, napló, eszközlisták, LAN-mérés, Miner's)
+  maguk a linkek. Hová nyílnak: **Beállítások > Általános > Linkek kezelése** - Belső (saját Webolvasó,
+  alapértelmezett) / Külső (a telefon böngészője) / Kérdez.
+- **Webolvasó felső gombsora (középre igazítva):** LISTA (a jelenlegi hálózat eszközei a tesztekből összesített
+  adatokkal + a legutóbbi web-címek) · KÖNYV (minden valaha elmentett cím minden hálózatról, törlés gombbal és
+  visszakérdezéssel) · SSH (leírás + a látott SSH-szolgáltatások és az SSH-t említő naplósorok). A megnyitott
+  oldalak előzménye: `profiles/web_history.json`.
+- **Linkelés (előkészítés):** Network-Tools példányok egymásra találása UDP 47800-on (HELLO / PING) - helyben
+  broadcast-tal, távol megadott címen. Beállítások > Linkelés. Terv és protokoll: [LINK_PROTOCOL.md](LINK_PROTOCOL.md).
 
 ## Miner's (v0.1.11 - ventilátor ikon a jobb fiókban)
 

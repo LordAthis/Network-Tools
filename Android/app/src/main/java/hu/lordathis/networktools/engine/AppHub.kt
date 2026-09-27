@@ -1,4 +1,4 @@
-// Verzio: v0.8.0 - 2026-09-27
+// Verzio: v0.9.0 - 2026-09-28
 package hu.lordathis.networktools.engine
 
 import android.app.Application
@@ -13,6 +13,7 @@ import android.os.Environment
 import androidx.lifecycle.AndroidViewModel
 import hu.lordathis.networktools.BuildConfig
 import hu.lordathis.networktools.crypto.CryptoService
+import hu.lordathis.networktools.link.LinkService
 import hu.lordathis.networktools.miner.MinerCandidate
 import hu.lordathis.networktools.miner.MinerService
 import hu.lordathis.networktools.miner.MinerStatus
@@ -40,6 +41,7 @@ import hu.lordathis.networktools.storage.LogMerge
 import hu.lordathis.networktools.storage.LogStore
 import hu.lordathis.networktools.storage.Migrations
 import hu.lordathis.networktools.storage.StorageWriter
+import hu.lordathis.networktools.storage.WebHistoryStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -195,6 +197,9 @@ class AppHub(application: Application) : AndroidViewModel(application) {
         log = { log(it) },
     )
 
+    /** Linkelés (Network-Tools példányok egymásra találása) - lásd LINK_PROTOCOL.md. */
+    val link = LinkService(appContext, prefs) { log(it) }
+
     private val lastAutoRunState = MutableStateFlow(prefs.lastAutoTestsRunMs)
     /** Az automatikus tesztek legutóbbi lefutása - a jobb fiók Gyorsjelentés ikonjának "friss" jelzéséhez. */
     val lastAutoRunMs: StateFlow<Long> = lastAutoRunState.asStateFlow()
@@ -283,6 +288,10 @@ class AppHub(application: Application) : AndroidViewModel(application) {
 
         // Induláskori GYORS ellenőrzés: milyen hálózat(ok) érhetők el, ismerős-e, hány élő eszköz -
         // azonnal a Kezdőlapra és a Gyorsjelentésbe. Utána a hálózatváltásokat egy NetworkCallback figyeli.
+        if (prefs.linkVisible) {
+            testScope.launch { link.setVisible(true) }
+        }
+
         testScope.launch {
             delay(800)
             runQuickCheck()
@@ -805,6 +814,123 @@ class AppHub(application: Application) : AndroidViewModel(application) {
     }
 
     // ==================================================================================
+    // Webolvasó: cím-listák (lista / könyv), SSH-infó, előzmények
+    // ==================================================================================
+
+    private val webHistory = WebHistoryStore(File(storage.profilesDir, "web_history.json"))
+
+    /** A Webolvasó minden megnyitott oldala ide kerül (cím + oldalcím + időpont). */
+    fun recordWebVisit(url: String, title: String?) {
+        storageScope.launch { webHistory.record(url, title) }
+    }
+
+    fun updateWebTitle(url: String, title: String) {
+        storageScope.launch { webHistory.updateTitle(url, title) }
+    }
+
+    private fun networkDisplayName(key: String): String =
+        profilesState.value.firstOrNull { it.id == key }?.displayName
+            ?: if (key.startsWith("unknown:")) "Ismeretlen hálózat (${key.removePrefix("unknown:").takeLast(6)})" else key
+
+    /**
+     * Cím-lista a Webolvasóhoz. [currentOnly] = true: a JELENLEGI hálózat eszközei + a legutóbbi 20 web-cím
+     * ("lista" gomb); false: minden valaha elmentett eszköz, minden hálózatról + a teljes web-előzmény ("könyv").
+     */
+    suspend fun loadAddresses(currentOnly: Boolean): List<AddressEntry> = withContext(Dispatchers.IO) {
+        val current = quickCheckState.value.networkKey
+        val all = speedStore.allLanHosts()
+        val nets = if (currentOnly) all.filterKeys { it == current } else all
+        val measured = speed.catalog.measured().associateBy { it.networkKey + "|" + it.ip }
+        val miners = minerStatusState.value
+        val out = ArrayList<AddressEntry>()
+        for ((key, hosts) in nets) {
+            val netName = networkDisplayName(key)
+            for (h in hosts) {
+                val d = ArrayList<String>()
+                h.hostname?.let { d += "név: $it" }
+                h.httpTitle?.let { d += "web: $it" }
+                h.snmpDescr?.let { d += "SNMP: ${it.take(90)}" }
+                h.openPorts?.takeIf { it != "-" }?.let { d += "portok: $it" }
+                h.sshBanner?.let { d += "SSH: $it" }
+                h.minerInfo?.let { d += "miner: ${it.take(90)}" }
+                speed.catalog.match(h.fingerprint)?.let { c ->
+                    d += "gyártói lista: ${c.vendor} ${c.model} (" +
+                        (c.portMbps?.let { "$it Mbps port" } ?: "WiFi ~${c.wifiMbps} Mbps") + ")"
+                }
+                measured["$key|${h.ip}"]?.let { m ->
+                    d += "saját mérés: RTT ${m.minRttMs?.let { "%.1f".format(it) } ?: "?"} ms" +
+                        (m.bestPathMbps?.let { ", útvonal ~${"%.0f".format(it)} Mbps" } ?: "") + " (${m.runs}×)"
+                }
+                if (key == current) miners[h.ip]?.takeIf { it.ok }?.let { d += "miner-állapot: ${it.headline}" }
+                out += AddressEntry(
+                    kind = AddressEntry.Kind.LAN,
+                    address = h.ip,
+                    openUrl = "http://${h.ip}/",
+                    title = h.label,
+                    networkKey = key,
+                    networkName = netName,
+                    details = d,
+                    lastMs = h.lastSeenMs,
+                )
+            }
+        }
+        val visits = webHistory.loadAll().let { if (currentOnly) it.take(20) else it }
+        for (v in visits) {
+            out += AddressEntry(
+                kind = AddressEntry.Kind.WEB,
+                address = v.url,
+                openUrl = v.url,
+                title = v.title.ifBlank { v.url },
+                networkKey = null,
+                networkName = null,
+                details = listOf("megnyitva ${v.count}×"),
+                lastMs = v.lastMs,
+            )
+        }
+        out
+    }
+
+    /** Egy cím végleges törlése (LAN-eszköz a hálózat listájából, vagy web-cím az előzményből). */
+    suspend fun deleteAddress(entry: AddressEntry) = withContext(Dispatchers.IO) {
+        when (entry.kind) {
+            AddressEntry.Kind.LAN -> entry.networkKey?.let { speedStore.deleteLanHost(it, entry.address) }
+            AddressEntry.Kind.WEB -> webHistory.delete(entry.address)
+        }
+        log("Cím törölve a listából: ${entry.address}" + (entry.networkName?.let { " ($it)" } ?: ""))
+    }
+
+    /** Az SSH-gomb tartalma: a hálózatokon látott SSH-szolgáltatások + az SSH-t említő naplósorok. */
+    suspend fun loadSshInfo(): List<String> = withContext(Dispatchers.IO) {
+        val out = ArrayList<String>()
+        val current = quickCheckState.value.networkKey
+        val all = speedStore.allLanHosts()
+        val ordered = all.entries.sortedByDescending { it.key == current }
+        for ((key, hosts) in ordered) {
+            val withSsh = hosts.filter { it.sshBanner != null || it.openPorts?.split(",")?.any { p -> p.trim() == "22" } == true }
+            if (withSsh.isEmpty()) continue
+            out += "# ${networkDisplayName(key)}" + if (key == current) " (jelenlegi)" else ""
+            withSsh.forEach { h -> out += "${h.ip}  ${h.sshBanner ?: "22-es port nyitva"}" + (h.hostname?.let { " · $it" } ?: "") }
+        }
+        val files = storage.testLogDir.listFiles { f -> f.isFile && f.name.endsWith(".log") }
+            ?.sortedByDescending { it.lastModified() }?.take(200) ?: emptyList()
+        val logLines = ArrayList<String>()
+        for (f in files) {
+            try {
+                f.readLines(Charsets.UTF_8).filter { it.contains("SSH", ignoreCase = true) && !it.startsWith("==") }
+                    .forEach { logLines += "${f.name}: ${it.trim()}" }
+            } catch (e: Exception) {
+                // olvashatatlan fájl - kihagyjuk
+            }
+            if (logLines.size >= 150) break
+        }
+        if (logLines.isNotEmpty()) {
+            out += "# Naplóbejegyzések (log/tests)"
+            out += logLines.take(150)
+        }
+        out
+    }
+
+    // ==================================================================================
     // Miner's (ventilátor ikon) - a hálózaton talált minerek részletes lekérdezése
     // ==================================================================================
 
@@ -874,6 +1000,7 @@ class AppHub(application: Application) : AndroidViewModel(application) {
 
     override fun onCleared() {
         crypto.close()
+        link.close()
         networkCallback?.let { runCatching { connectivityManager.unregisterNetworkCallback(it) } }
         testScope.cancel()
         backupScope.cancel()

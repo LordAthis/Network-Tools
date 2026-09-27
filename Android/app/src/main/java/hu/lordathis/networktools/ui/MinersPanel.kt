@@ -1,4 +1,4 @@
-// Verzio: v0.1.0 - 2026-09-27
+// Verzio: v0.1.1 - 2026-09-28
 package hu.lordathis.networktools.ui
 
 import androidx.compose.foundation.border
@@ -159,7 +159,7 @@ private fun MinerCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(status?.model ?: catalogModel ?: label, color = TextMain, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                Text("$ip · $reason", color = TextDim, fontSize = 9.sp, maxLines = 1)
+                LinkifiedText("$ip · $reason", color = TextDim, fontSize = 9.sp, maxLines = 1)
             }
         }
         if (status != null) {

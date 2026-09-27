@@ -1,4 +1,4 @@
-// Verzio: v0.4.1 - 2026-09-21
+// Verzio: v0.4.2 - 2026-09-28
 package hu.lordathis.networktools.ui
 
 import android.graphics.Bitmap
@@ -268,7 +268,7 @@ private fun TestTerminalArea(jobs: List<TestJob>) {
         }
         if (active != null) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                items(active.lines) { line -> Text(line, color = Accent, fontSize = 9.sp) }
+                items(active.lines) { line -> LinkifiedText(line, color = Accent, fontSize = 9.sp) }
             }
         }
     }
@@ -308,7 +308,7 @@ internal fun HomeStripedPanel(
                             Text("Itt jelenik meg az állandó napló (indítás, mentés, tesztek stb.).", color = TextDim, fontSize = 10.sp)
                         } else {
                             LazyColumn(state = listState) {
-                                items(logLines) { line -> Text(line, color = TextDim, fontSize = 9.sp) }
+                                items(logLines) { line -> LinkifiedText(line, color = TextDim, fontSize = 9.sp) }
                             }
                         }
                     }
@@ -358,7 +358,7 @@ internal fun LogStripedPanel(modifier: Modifier, logLines: List<String>, onSave:
             Text("Még nincs naplóbejegyzés.", color = TextDim, fontSize = 11.sp)
         } else {
             LazyColumn {
-                items(logLines) { line -> Text(line, color = Accent, fontSize = 9.sp) }
+                items(logLines) { line -> LinkifiedText(line, color = Accent, fontSize = 9.sp) }
             }
         }
     }
@@ -407,146 +407,7 @@ internal fun AboutStripedPanel(modifier: Modifier, versionName: String, dataFold
     }
 }
 
-// ---------------------------------------------------------------------------
-// Webolvasó: egyszerűsített, beépített böngésző (WebView): címsor, megnyitás, vissza / előre /
-// újratöltés. Nincs lapfül, könyvjelző, letöltés-kezelés; csak http(s) oldalak nyílnak meg.
-// ---------------------------------------------------------------------------
-
-/** A beírt szövegből megnyitható cím: "https://" nélküli tartomány -> https, szóközös szöveg -> keresés. */
-internal fun normalizeWebInput(raw: String): String {
-    val t = raw.trim()
-    if (t.isEmpty()) return ""
-    if (t.startsWith("http://", ignoreCase = true) || t.startsWith("https://", ignoreCase = true)) return t
-    val looksLikeAddress = !t.contains(' ') && t.contains('.')
-    return if (looksLikeAddress) "https://$t" else "https://duckduckgo.com/?q=" + Uri.encode(t)
-}
-
-@Composable
-internal fun WebReaderStripedPanel(
-    modifier: Modifier,
-    startUrl: String,
-    onUrlChange: (String) -> Unit,
-    onLog: (String) -> Unit,
-) {
-    var input by remember { mutableStateOf(startUrl) }
-    var progress by remember { mutableIntStateOf(0) }
-    var canGoBack by remember { mutableStateOf(false) }
-    var canGoForward by remember { mutableStateOf(false) }
-    var webView by remember { mutableStateOf<WebView?>(null) }
-
-    val open: () -> Unit = {
-        val url = normalizeWebInput(input)
-        if (url.isNotEmpty()) {
-            input = url
-            webView?.loadUrl(url)
-            onUrlChange(url)
-            onLog("Webolvasó: megnyitás: $url")
-        }
-    }
-
-    // Vissza gomb: előbb az oldal előzményében lép vissza; ha nincs hova, a fő kezelő a Kezdőlapra visz.
-    BackHandler(enabled = canGoBack) { webView?.goBack() }
-
-    // A panel elhagyásakor a WebView felszabadul (az utolsó cím megmarad, a következő megnyitáskor újratöltődik).
-    DisposableEffect(Unit) {
-        onDispose {
-            webView?.apply {
-                stopLoading()
-                destroy()
-            }
-        }
-    }
-
-    StripedPanel(
-        modifier = modifier,
-        topStripe = StripeSpec(
-            label = "MEGNYITÁS",
-            enabled = input.isNotBlank(),
-            onClick = open
-        )
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Text("WEBOLVASÓ", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Spacer(Modifier.height(6.dp))
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                placeholder = { Text("https://...", fontSize = 11.sp) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { open() }),
-                colors = appFieldColors(),
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(6.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                PillButton("VISSZA", enabled = canGoBack, filled = false) { webView?.goBack() }
-                Spacer(Modifier.size(8.dp))
-                PillButton("ELŐRE", enabled = canGoForward, filled = false) { webView?.goForward() }
-                Spacer(Modifier.size(8.dp))
-                PillButton("ÚJRA", enabled = true, filled = false) { webView?.reload() }
-            }
-            Spacer(Modifier.height(6.dp))
-            if (progress in 1..99) {
-                LinearProgressIndicator(
-                    progress = { progress / 100f },
-                    color = Accent,
-                    trackColor = Accent.copy(alpha = 0.2f),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            AndroidView(
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.allowFileAccess = false
-                        settings.allowContentAccess = false
-                        settings.setSupportZoom(true)
-                        settings.builtInZoomControls = true
-                        settings.displayZoomControls = false
-                        settings.useWideViewPort = true
-                        settings.loadWithOverviewMode = true
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                                val scheme = request.url.scheme?.lowercase()
-                                return scheme != "http" && scheme != "https"
-                            }
-
-                            override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
-                                if (url != null) {
-                                    input = url
-                                    onUrlChange(url)
-                                }
-                                canGoBack = view.canGoBack()
-                                canGoForward = view.canGoForward()
-                            }
-
-                            override fun onPageFinished(view: WebView, url: String?) {
-                                canGoBack = view.canGoBack()
-                                canGoForward = view.canGoForward()
-                            }
-                        }
-                        webChromeClient = object : WebChromeClient() {
-                            override fun onProgressChanged(view: WebView, newProgress: Int) {
-                                progress = newProgress
-                            }
-                        }
-                        if (startUrl.isNotBlank()) loadUrl(startUrl)
-                    }
-                },
-                update = { view -> if (webView !== view) webView = view },
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            )
-        }
-    }
-}
+// A Webolvasó a WebReaderPanel.kt-ba költözött (v0.1.12).
 
 @Composable
 internal fun appFieldColors() = OutlinedTextFieldDefaults.colors(
