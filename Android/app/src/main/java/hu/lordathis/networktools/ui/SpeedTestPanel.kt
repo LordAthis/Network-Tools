@@ -1,4 +1,4 @@
-// Verzio: v0.1.0 - 2026-09-27
+// Verzio: v0.1.1 - 2026-09-27
 package hu.lordathis.networktools.ui
 
 import androidx.compose.foundation.Canvas
@@ -162,14 +162,20 @@ private fun ContextSection(state: SpeedUiState, onSaveContract: (Int?, Int?) -> 
                     "${link.wifiLinkMbps ?: "?"} Mbps"
                 }
                 InfoLine("WiFi PHY", phy + (link.wifiMaxRxMbps?.let { " (max. $it)" } ?: ""))
+                if ((link.wifiRxMbps ?: 999) < 12 && (link.phyDownMbps ?: 0) > (link.wifiRxMbps ?: 0)) {
+                    Text(
+                        "A \"le\" érték az utoljára vett keret rátája - üresjáratban ilyen alacsony is lehet; a becslés a nagyobb értékkel számol.",
+                        color = TextDim, fontSize = 9.sp,
+                    )
+                }
                 link.wifiRssi?.let { InfoLine("Jelerősség", "$it dBm", if (it < -72) WarnColor else TextMain) }
             }
             if (link.isEthernet) InfoLine("Vezetékes link", link.ethernetMbps?.let { "$it Mbps" } ?: "a rendszer nem adja meg")
             InfoLine("Átjáró / DNS", "${link.gateway ?: "?"} / ${link.dnsServers.joinToString(", ").ifBlank { "?" }}")
             val realistic = when {
                 link.isEthernet && link.ethernetMbps != null -> "~${(link.ethernetMbps * 0.94).toInt()} Mbps (vezetékes link)"
-                link.isWifi && (link.wifiRxMbps ?: link.wifiLinkMbps) != null ->
-                    "~${((link.wifiRxMbps ?: link.wifiLinkMbps ?: 0) * 0.6).toInt()} Mbps (a WiFi PHY ~60%-a)"
+                link.isWifi && link.phyDownMbps != null ->
+                    "~${((link.phyDownMbps ?: 0) * 0.6).toInt()} Mbps (a WiFi PHY ~60%-a)"
                 else -> null
             }
             if (realistic != null) InfoLine("Valós plafon (becslés)", realistic, AccentBlue)

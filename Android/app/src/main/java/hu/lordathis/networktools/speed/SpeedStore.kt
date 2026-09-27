@@ -1,4 +1,4 @@
-// Verzio: v0.1.0 - 2026-09-27
+// Verzio: v0.1.1 - 2026-09-27
 package hu.lordathis.networktools.speed
 
 import org.json.JSONArray
@@ -164,6 +164,7 @@ class SpeedStore(private val dir: File) {
         put("snmpDescr", h.snmpDescr ?: JSONObject.NULL)
         put("sshBanner", h.sshBanner ?: JSONObject.NULL)
         put("minerInfo", h.minerInfo ?: JSONObject.NULL)
+        put("openPorts", h.openPorts ?: JSONObject.NULL)
         put("lastSeenMs", h.lastSeenMs)
     }
 
@@ -174,6 +175,7 @@ class SpeedStore(private val dir: File) {
         snmpDescr = optStr(o, "snmpDescr"),
         sshBanner = optStr(o, "sshBanner"),
         minerInfo = optStr(o, "minerInfo"),
+        openPorts = optStr(o, "openPorts"),
         lastSeenMs = o.optLong("lastSeenMs"),
     )
 

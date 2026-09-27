@@ -1,4 +1,4 @@
-// Verzio: v0.5.0 - 2026-09-22
+// Verzio: v0.6.0 - 2026-09-27
 package hu.lordathis.networktools.engine
 
 enum class JobStatus { RUNNING, DONE, FAILED }
@@ -17,6 +17,17 @@ data class TestJob(
     val startedMs: Long,
     val finishedMs: Long? = null,
     val lines: List<String> = emptyList(),
+)
+
+/**
+ * Egy teszt részletes paneljének (a bal fiók sorára koppintva) KORÁBBI adatai: a legutóbbi elmentett
+ * átirat (log/tests/), és a tesztek által a hálózaton látott eszközök (profiles/lan_hosts.json).
+ */
+data class TestDetailData(
+    val transcript: List<String> = emptyList(),
+    val transcriptFile: String? = null,
+    val transcriptTimeMs: Long? = null,
+    val hosts: List<hu.lordathis.networktools.speed.LanHostInfo> = emptyList(),
 )
 
 /** Egy teszt legutóbbi futásának rövid összefoglalója (a Gyorsjelentés alsó kerete ezekből épül). */

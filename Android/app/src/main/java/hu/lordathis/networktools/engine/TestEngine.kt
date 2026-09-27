@@ -1,4 +1,4 @@
-// Verzio: v0.6.0 - 2026-09-27
+// Verzio: v0.6.1 - 2026-09-27
 package hu.lordathis.networktools.engine
 
 import hu.lordathis.networktools.network.ArpProbe
@@ -58,6 +58,12 @@ class TestEngine(
      * LAN-eszközök - a Sebességteszt LAN-mérése ezekből választ célpontot (SpeedStore.lan_hosts.json).
      */
     private val onHostsObserved: (List<LanHostInfo>) -> Unit = {},
+    /**
+     * A közelmúltban (néhány percen belül) élőnek látott LAN-eszközök. Ha van ilyen, a Felderítés/
+     * Szolgáltatások/Miner tesztek EZT használják, nem futtatnak mindegyik előtt saját ping-sweepet
+     * (ez volt a README-ben jelzett "ismert tervezési hiba").
+     */
+    private val recentAliveHosts: () -> List<String> = { emptyList() },
 ) {
     private val jobsState = MutableStateFlow<List<TestJob>>(emptyList())
     val jobs: StateFlow<List<TestJob>> = jobsState.asStateFlow()
@@ -277,10 +283,7 @@ class TestEngine(
     }
 
     private suspend fun runHostnameLookup(emit: (String) -> Unit): String {
-        val hosts = targetHosts(emit)?.let { all ->
-            // Csak a mostanra már ismert(nek tűnő) célokra van értelme - egy gyors élő-lista előbb.
-            PingTools.sweep(all, concurrency = prefs.scanConcurrency)
-        } ?: return "Nincs vizsgálható alháló"
+        val hosts = aliveHosts(emit) ?: return "Nincs vizsgálható alháló"
         if (hosts.isEmpty()) {
             emit("Nincs élő host, amin hostname-feloldást lehetne próbálni.")
             return "Nincs élő host"
@@ -301,7 +304,7 @@ class TestEngine(
     }
 
     private suspend fun runSnmpProbe(emit: (String) -> Unit): String {
-        val hosts = targetHosts(emit)?.let { PingTools.sweep(it, concurrency = prefs.scanConcurrency) }
+        val hosts = aliveHosts(emit)
             ?: return "Nincs vizsgálható alháló"
         var found = 0
         for (host in hosts) {
@@ -344,7 +347,7 @@ class TestEngine(
     // ------------------------------------------------------------------ B/C csoport (port/szolgáltatás)
 
     private suspend fun runPortScan(emit: (String) -> Unit): String {
-        val hosts = targetHosts(emit)?.let { PingTools.sweep(it, concurrency = prefs.scanConcurrency) }
+        val hosts = aliveHosts(emit)
             ?: return "Nincs vizsgálható alháló"
         if (hosts.isEmpty()) {
             emit("Nincs élő host a port-scanhez.")
@@ -359,13 +362,22 @@ class TestEngine(
                 emit("$host - nyitott portok: ${open.joinToString(", ") { it.port.toString() }}")
                 totalOpen += open.size
             }
+            observe(
+                listOf(
+                    LanHostInfo(
+                        ip = host,
+                        openPorts = open.map { it.port }.sorted().joinToString(", ").ifEmpty { "-" },
+                        lastSeenMs = System.currentTimeMillis(),
+                    )
+                )
+            )
         }
         emit("Kész: összesen $totalOpen nyitott port.")
         return "$totalOpen nyitott port ${hosts.size} hoszton"
     }
 
     private suspend fun runHttpTitle(emit: (String) -> Unit): String {
-        val hosts = targetHosts(emit)?.let { PingTools.sweep(it, concurrency = prefs.scanConcurrency) }
+        val hosts = aliveHosts(emit)
             ?: return "Nincs vizsgálható alháló"
         var found = 0
         for (host in hosts) {
@@ -383,7 +395,7 @@ class TestEngine(
     }
 
     private suspend fun runSshBanner(emit: (String) -> Unit): String {
-        val hosts = targetHosts(emit)?.let { PingTools.sweep(it, concurrency = prefs.scanConcurrency) }
+        val hosts = aliveHosts(emit)
             ?: return "Nincs vizsgálható alháló"
         var found = 0
         for (host in hosts) {
@@ -399,7 +411,7 @@ class TestEngine(
     }
 
     private suspend fun runMinerApi(emit: (String) -> Unit): String {
-        val hosts = targetHosts(emit)?.let { PingTools.sweep(it, concurrency = prefs.scanConcurrency) }
+        val hosts = aliveHosts(emit)
             ?: return "Nincs vizsgálható alháló"
         var found = 0
         for (host in hosts) {
@@ -453,6 +465,26 @@ class TestEngine(
     }
 
     // ------------------------------------------------------------------ Segédek
+
+    /** Élő célok: a friss (megosztott) ping-sweep eredmény, vagy - ha nincs - egy új sweep. */
+    private suspend fun aliveHosts(emit: (String) -> Unit): List<String>? {
+        val all = targetHosts(emit) ?: return null
+        val allSet = all.toHashSet()
+        val recent = try {
+            recentAliveHosts().filter { it in allSet }
+        } catch (e: Exception) {
+            emptyList()
+        }
+        if (recent.isNotEmpty()) {
+            emit("A legutóbbi ping-sweep eredményét használom (${recent.size} élő eszköz) - teljesen friss listához futtasd újra a Ping-sweep-et.")
+            return recent
+        }
+        emit("Élő eszközök keresése (ping-sweep, ${all.size} cím)...")
+        val alive = PingTools.sweep(all, concurrency = prefs.scanConcurrency)
+        val seenAt = System.currentTimeMillis()
+        observe(alive.map { LanHostInfo(ip = it, lastSeenMs = seenAt) })
+        return alive
+    }
 
     private fun observe(hosts: List<LanHostInfo>) {
         if (hosts.isEmpty()) return

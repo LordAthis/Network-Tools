@@ -1,48 +1,139 @@
 {
-  "version": 3,
+  "version": 4,
   "auto_tests": [
-    { "id": "adapter_info", "name": "Adapterek es IP-konfiguracio", "shortCode": "ADP" },
-    { "id": "gateway_dns", "name": "Atjaro es DNS-szerverek", "shortCode": "GW" },
-    { "id": "public_ip", "name": "Publikus IP cim", "shortCode": "WANIP" },
-    { "id": "cgnat_test", "name": "CGNAT-teszt", "shortCode": "CGNAT" },
-    { "id": "ipv6_status", "name": "IPv6-allapot", "shortCode": "IPV6" },
-    { "id": "device_info", "name": "Eszkoz- es rendszerinfo", "shortCode": "DEV" },
-    { "id": "dual_phase", "name": "Vezetekes / mobil osszehasonlitas", "shortCode": "DUAL" },
-    { "id": "wan_test", "name": "Gateway / WAN elerhetoseg", "shortCode": "WAN" },
-    { "id": "dns_timing", "name": "DNS-feloldasi sebesseg", "shortCode": "DNST" }
+    {
+      "id": "adapter_info",
+      "name": "Adapterek es IP-konfiguracio",
+      "shortCode": "ADP"
+    },
+    {
+      "id": "gateway_dns",
+      "name": "Atjaro es DNS-szerverek",
+      "shortCode": "GW"
+    },
+    {
+      "id": "public_ip",
+      "name": "Publikus IP cim",
+      "shortCode": "WANIP"
+    },
+    {
+      "id": "cgnat_test",
+      "name": "CGNAT-teszt",
+      "shortCode": "CGNAT"
+    },
+    {
+      "id": "ipv6_status",
+      "name": "IPv6-allapot",
+      "shortCode": "IPV6"
+    },
+    {
+      "id": "device_info",
+      "name": "Eszkoz- es rendszerinfo",
+      "shortCode": "DEV"
+    },
+    {
+      "id": "dual_phase",
+      "name": "Vezetekes / mobil osszehasonlitas",
+      "shortCode": "DUAL"
+    },
+    {
+      "id": "wan_test",
+      "name": "Gateway / WAN elerhetoseg",
+      "shortCode": "WAN"
+    },
+    {
+      "id": "dns_timing",
+      "name": "DNS-feloldasi sebesseg",
+      "shortCode": "DNST"
+    }
   ],
   "manual_groups": [
     {
       "id": "discovery",
       "name": "Felderites",
       "tests": [
-        { "id": "ping_sweep", "name": "Ping-sweep (elo eszkozok)", "shortCode": "SWEEP" },
-        { "id": "hostname_lookup", "name": "Hostname-feloldas", "shortCode": "PTR" },
-        { "id": "snmp_probe", "name": "SNMP-alapu eszkozfelismeres", "shortCode": "SNMP" }
+        {
+          "id": "ping_sweep",
+          "name": "Ping-sweep (elo eszkozok)",
+          "shortCode": "SWEEP",
+          "description": "A jelenlegi alháló (és a Beállításokban megadott extra alhálók) összes címét végigpróbálja rövid TCP-kapcsolódással, és kilistázza az élő eszközöket. Az eredményt a többi teszt és a LAN-mérés is felhasználja."
+        },
+        {
+          "id": "hostname_lookup",
+          "name": "Hostname-feloldas",
+          "shortCode": "PTR",
+          "description": "Az élő eszközök IP-címéhez fordított DNS-lekérdezéssel (PTR) nevet keres - a router DNS-e sokszor ismeri a DHCP-n kapott neveket."
+        },
+        {
+          "id": "snmp_probe",
+          "name": "SNMP-alapu eszkozfelismeres",
+          "shortCode": "SNMP",
+          "description": "SNMP v2c (community: public) lekérdezés az élő eszközökre: sysName és sysDescr. Managed switchek, routerek, nyomtatók, NAS-ok gyakran válaszolnak."
+        }
       ]
     },
     {
       "id": "services",
       "name": "Szolgaltatasok",
       "tests": [
-        { "id": "port_scan", "name": "Port-scan", "shortCode": "PORT" },
-        { "id": "http_title", "name": "HTTP web-UI cim", "shortCode": "HTTP" },
-        { "id": "ssh_banner", "name": "SSH-banner", "shortCode": "SSH" }
+        {
+          "id": "port_scan",
+          "name": "Port-scan",
+          "shortCode": "PORT",
+          "description": "Az élő eszközök nyitott TCP-portjai (a Beállítások > Hálózati beállítások portlistája vagy az összes port)."
+        },
+        {
+          "id": "http_title",
+          "name": "HTTP web-UI cim",
+          "shortCode": "HTTP",
+          "description": "A 80/8080-as porton futó web-felületek címe (title) - ebből gyakran kiderül a gyártó/modell (router, kamera, miner)."
+        },
+        {
+          "id": "ssh_banner",
+          "name": "SSH-banner",
+          "shortCode": "SSH",
+          "description": "A 22-es porton futó SSH-szolgáltatás bemutatkozó sora (pl. dropbear = beágyazott eszköz, miner, router)."
+        }
       ]
     },
     {
       "id": "miner",
       "name": "Miner",
       "tests": [
-        { "id": "miner_api", "name": "Miner API proba", "shortCode": "MINER" }
+        {
+          "id": "miner_api",
+          "name": "Miner API proba",
+          "shortCode": "MINER",
+          "description": "cgminer/bmminer-kompatibilis miner API (4028/4433 port) keresése - Antminer, Whatsminer, Avalon és társaik. A találatok a Miner's panelen részletesen lekérdezhetők."
+        }
       ]
     }
   ],
   "speed_tests": [
-    { "id": "speed_bw", "name": "Savszelesseg-teszt (M1)", "shortCode": "SPEED" },
-    { "id": "speed_udp", "name": "Stabilitas / csomagvesztes (M2)", "shortCode": "LOSS" },
-    { "id": "speed_ping", "name": "Kabelteszt - folyamatos ping (M3)", "shortCode": "CABLE" },
-    { "id": "speed_lan", "name": "LAN-meres (belso eszkozok)", "shortCode": "LAN" }
+    {
+      "id": "speed_bw",
+      "name": "Savszelesseg-teszt (M1)",
+      "shortCode": "SPEED"
+    },
+    {
+      "id": "speed_udp",
+      "name": "Stabilitas / csomagvesztes (M2)",
+      "shortCode": "LOSS"
+    },
+    {
+      "id": "speed_ping",
+      "name": "Kabelteszt - folyamatos ping (M3)",
+      "shortCode": "CABLE"
+    },
+    {
+      "id": "speed_lan",
+      "name": "LAN-meres (belso eszkozok)",
+      "shortCode": "LAN"
+    }
   ],
-  "arp_spike": { "id": "arp_spike", "name": "ARP-tabla olvashatosagi teszt", "shortCode": "ARP" }
+  "arp_spike": {
+    "id": "arp_spike",
+    "name": "ARP-tabla olvashatosagi teszt",
+    "shortCode": "ARP"
+  }
 }

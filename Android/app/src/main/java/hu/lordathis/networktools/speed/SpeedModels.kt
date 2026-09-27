@@ -1,4 +1,4 @@
-// Verzio: v0.1.0 - 2026-09-27
+// Verzio: v0.2.0 - 2026-09-27
 package hu.lordathis.networktools.speed
 
 import hu.lordathis.networktools.network.ConnectionKind
@@ -38,6 +38,16 @@ data class LinkSnapshot(
     val takenMs: Long = 0L,
 ) {
     val isWifi: Boolean get() = kind == ConnectionKind.WIFI
+
+    /**
+     * A letöltési irány mérvadó PHY-sebessége. FIGYELEM: az Android "rx link speed" értéke az utoljára
+     * VETT keret rátája - üresjáratban gyakran csak 1-6 Mbps (valós telefonon mérve: "le 1 / fel 78").
+     * Ezért a három érték (rx, link, tx) maximuma a mérvadó, nem önmagában az rx.
+     */
+    val phyDownMbps: Int? get() = listOfNotNull(wifiRxMbps, wifiLinkMbps, wifiTxMbps).maxOrNull()
+
+    /** A feltöltési irány mérvadó PHY-sebessége (tx vagy link, a nagyobb). */
+    val phyUpMbps: Int? get() = listOfNotNull(wifiTxMbps, wifiLinkMbps).maxOrNull()
     val isEthernet: Boolean get() = kind == ConnectionKind.ETHERNET
     val band: String?
         get() = wifiFreqMhz?.let {
@@ -164,6 +174,8 @@ data class LanHostInfo(
     val snmpDescr: String? = null,
     val sshBanner: String? = null,
     val minerInfo: String? = null,
+    /** A legutóbbi port-scan nyitott portjai, vesszővel elválasztva (pl. "22, 80, 4028"). */
+    val openPorts: String? = null,
     val lastSeenMs: Long = 0L,
 ) {
     /** Minden, ami alapján gyártóra/modellre lehet következtetni - a katalógus-egyeztetés ebben keres. */
@@ -180,6 +192,7 @@ data class LanHostInfo(
         snmpDescr = other.snmpDescr ?: snmpDescr,
         sshBanner = other.sshBanner ?: sshBanner,
         minerInfo = other.minerInfo ?: minerInfo,
+        openPorts = other.openPorts ?: openPorts,
         lastSeenMs = maxOf(lastSeenMs, other.lastSeenMs),
     )
 }

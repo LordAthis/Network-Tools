@@ -1,11 +1,11 @@
-// Verzio: v0.7.0 - 2026-09-27
+// Verzio: v0.8.0 - 2026-09-27
 package hu.lordathis.networktools.engine
 
 import android.content.Context
 import org.json.JSONObject
 
 /** Egy teszt bejegyzés a katalógusban (`assets/tests_catalog.json`). */
-data class TestDef(val id: String, val name: String, val shortCode: String, val groupId: String)
+data class TestDef(val id: String, val name: String, val shortCode: String, val groupId: String, val description: String = "")
 
 data class TestGroup(val id: String, val name: String, val tests: List<TestDef>)
 
@@ -48,7 +48,7 @@ object TestCatalog {
     private fun parseTestList(arr: org.json.JSONArray, groupId: String): List<TestDef> =
         (0 until arr.length()).map { i ->
             val t = arr.getJSONObject(i)
-            TestDef(t.getString("id"), t.getString("name"), t.getString("shortCode"), groupId)
+            TestDef(t.getString("id"), t.getString("name"), t.getString("shortCode"), groupId, t.optString("description", ""))
         }
 
     private fun loaded(context: Context): Triple<List<TestDef>, List<TestGroup>, TestDef> {

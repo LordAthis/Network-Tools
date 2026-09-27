@@ -1,4 +1,4 @@
-<!-- Verzio: v0.7.0 - 2026-09-27 -->
+<!-- Verzio: v0.8.0 - 2026-09-27 -->
 # Network Tool's - Android
 
 A Network-Tools projekt Android változata (Kotlin + Jetpack Compose, minSdk 26). Ebben a körben az UI-váz mellé bekerült egy
@@ -12,10 +12,13 @@ valódi hálózati teszt-motor is (lásd lent) - korábban csak a kinézet és a
   a JELENLEGI hálózatra szűrve), alul a **VISSZAJELZÉSEK** terület: 2/3 az éppen futó teszt(ek) élő, terminál-szerű kimenete
   (lapfüllel, ha egyszerre több fut), 1/3 az állandó, korábbi indításokat is mutató LOG.
 - **Két, szél-húzással nyitható fiók** - a funkciók gombjai KIZÁRÓLAG itt vannak:
-  - **Bal (széles, 280dp, akár 85% magasságig nő)**: a MANUÁLIS hálózati tesztek, közvetlenül FUTTATÁS gombbal,
-    3 csoportban: Felderítés (ping-sweep, hostname, SNMP), Szolgáltatások (port-scan, HTTP-cím, SSH-banner), Miner
-    (Miner API - itt bővül majd a jövőbeli Miner's funkció).
-  - **Jobb**: Gyorsjelentés, Sebességteszt, Napló — Jegyzet, Külső szolgáltatások, Webolvasó — Mentés, Beállítások,
+  - **Bal (széles, 280dp, akár 85% magasságig nő)**: a MANUÁLIS hálózati tesztek, 3 csoportban: Felderítés
+    (ping-sweep, hostname, SNMP), Szolgáltatások (port-scan, HTTP-cím, SSH-banner), Miner (Miner API).
+    **v0.1.11 óta**: CSAK a ▶ gomb indít futtatást; a sorra koppintva a teszt **saját panelje** nyílik: felül
+    FUTTATÁS gomb, alatta a teszt leírása, a legutóbbi eredmény, a hálózaton látott adatok (eszközönként) és a
+    kimenet (futás közben élőben, egyébként a legutóbbi mentett átirat) - futás-állapotváltáskor magától frissül.
+  - **Jobb**: Gyorsjelentés (kék pötty = 5 percen belül futottak az automatikus tesztek), Sebességteszt,
+    **Miner's (ventilátor ikon)**, Napló — Jegyzet, Külső szolgáltatások, Webolvasó — Mentés, Beállítások,
     Névjegy (3 csoport, elválasztókkal).
 - **Alsó ikonsor - MINDEN képernyőn**: [mobilnet] — [közép] — [WiFi], mindig valódi, középre igazított elrendezésben.
   A mobilnet/WiFi ikonra koppintva a rendszer WiFi/mobiladat beállítása nyílik meg (a "forgalom erre kényszerítése"
@@ -36,9 +39,8 @@ beszélgetésben található "teszt-rangsorolási elemzésben" van):
 - **Manuális (7 db, a bal fiókban, 3 csoportban)**: ping-sweep, hostname-feloldás, SNMP-felismerés (Felderítés) ·
   port-scan, HTTP-cím, SSH-banner (Szolgáltatások) · Miner API-próba (Miner). Mind a (lassabb) eszközkeresésre épül.
 
-**Ismert, még nem javított tervezési hiba**: a Felderítés/Szolgáltatások/Miner tesztek mindegyike ÖNÁLLÓAN
-újra lefuttatja a ping-sweepet induláskor, ahelyett hogy megosztanák az eredményt - feleslegesen lassítja
-őket. Egy következő kör feladata.
+**Javítva (v0.1.11)**: a Felderítés/Szolgáltatások/Miner tesztek már nem futtatnak mind saját ping-sweepet -
+ha 10 percen belül volt élő-eszköz lista (`profiles/lan_hosts.json`), azt használják.
 
 **ARP-tábla - megerősítve NEM olvasható**: a valós eszközön (Ulefone Power Armor14 Pro, Android 12) futtatott
 ARP-spike teszt szerint a `/proc/net/arp` nem olvasható root nélkül - a MAC-alapú "néma eszköz" és gyártó-
@@ -86,6 +88,17 @@ A jobb fiók **Sebességteszt** gombja. Minden rész a teszt-motor keretében fu
   érdemes a repó `device_speed_catalog.json` fájljába is átvezetni.
 - **Valódi LAN-áteresztés egy PC-hez**: a PC-n a `win/SpeedServer.ps1` (Launcher 15.) fut, a telefonon a címét
   megadva az M1 motor a PC-hez képest mér.
+
+## Miner's (v0.1.11 - ventilátor ikon a jobb fiókban)
+
+- Miner-jelöltek a korábbi tesztek adataiból: miner API válasz, nyitott 4028/4433 port, név / web-cím / SSH-banner
+  kulcsszavak (Antminer, Whatsminer, Avalon, Bitaxe, IceRiver, Goldshell, Braiins, LuxOS, VNish...), gyártói lista.
+- Felül MINER-KERESÉS (a "Miner API próba" teszt), minerenként és egyben is **részletes lekérdezés** (csak olvasó
+  API-parancsok: version/summary/pools/stats): modell, firmware, hashrate (5 s / átlag), üzemidő, share-ek,
+  HW-hibák, hőfokok (75/85 °C fölött sárga/piros), ventilátor-fordulatok (500 rpm alatt sárga), poolok állapota.
+- IP-cím kézzel is megadható; a web-felület a beépített böngészőben nyílik (ehhez `usesCleartextTraffic=true` -
+  a helyi eszközök felülete szinte mindig sima http://).
+- **Még nincs kész**: hitelesítő-trezor (SSH/web belépés), AI-fotó-felismerés.
 
 ## Hálózat-kényszerítés és hálózati profilok (ÚJ)
 
@@ -146,7 +159,7 @@ Az elv: az app nem csinál rejtett, fájlonként nem látható/törölhető ment
 ## Amit ez a kör KIHAGYOTT (nyíltan jelezve, nem lett elfelejtve)
 
 - **Floppy (profil-kezelő UI)**, **Import/Export** (ajtó-nyíl ikon), **SSH/FTP-webolvasó bővítés**, **Bluetooth-panel**,
-  **Miner's** (ventilátor ikon, hitelesítő-trezor, AI-fotó-felismerés) - ezek a KÖVETKEZŐ kör anyaga.
+  **Miner's hitelesítő-trezor és AI-fotó-felismerés** (a Miner's panel és ikon v0.1.11-ben elkészült) - ezek a KÖVETKEZŐ kör anyaga.
 - **A MAC-cím → név "interjú" folyamat**: az ARP-spike eredménye (lásd fent) megerősítette, hogy MAC-cím root nélkül nem
   szerezhető - ez a funkció emiatt jelen formájában nem tervezhető tovább (más forrás kellene a MAC-hez, pl. a jövőbeli
   router-bejelentkezés).
@@ -154,8 +167,7 @@ Az elv: az app nem csinál rejtett, fájlonként nem látható/törölhető ment
 - **Bal oldali fiók - egy döntés, ami eltér a szó szerinti kéréstől**: "3 fiókra bontás" helyett EGY, kiszélesített (280dp),
   magasabbra nyíló (85%-ig) fiók lett, 3 névvel elválasztott csoporttal - a szó szerinti 3 FÜGGETLEN, egyszerre húzható
   fiók a meglévő, korábban már hibajavított, egyedi gesztus-kód miatt kockázatosabb lett volna élő teszt nélkül.
-- **Gyorsjelentés-gomb "friss" jelzése** (ha 5 percnél frissebb az automatikus tesztek eredménye): az adat (`lastAutoRunMs`)
-  megvan, de a vizuális jelzés (pl. egy pötty az ikonon) még nincs bekötve a jobb fiók gombjára.
+- ~~Gyorsjelentés-gomb "friss" jelzése~~ - v0.1.11-ben bekötve (kék pötty a villám ikonon).
 
 ## Szerkezet
 

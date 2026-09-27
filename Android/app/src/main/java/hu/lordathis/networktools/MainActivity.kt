@@ -1,4 +1,4 @@
-// Verzio: v0.7.0 - 2026-09-27
+// Verzio: v0.8.0 - 2026-09-27
 package hu.lordathis.networktools
 
 import android.Manifest
@@ -82,6 +82,8 @@ import hu.lordathis.networktools.ui.SettingsActions
 import hu.lordathis.networktools.ui.SettingsStripedPanel
 import hu.lordathis.networktools.ui.SettingsUiState
 import hu.lordathis.networktools.ui.SpeedTestStripedPanel
+import hu.lordathis.networktools.ui.MinersStripedPanel
+import hu.lordathis.networktools.ui.TestDetailStripedPanel
 import hu.lordathis.networktools.ui.Skin
 import hu.lordathis.networktools.ui.StarField
 import hu.lordathis.networktools.ui.SyncStripedPanel
@@ -113,6 +115,10 @@ import java.time.format.DateTimeFormatter
 private enum class Screen {
     HOME, SETTINGS, LOG, ABOUT, NOTES, WEB_READER,
     QUICK_REPORT, SYNC, SPEED_TEST, EXTERNAL_SERVICES, RESULTS,
+    /** Egy manuális teszt saját panelje (a bal fiók sorára koppintva). */
+    TEST_DETAIL,
+    /** Miner's (jobb fiók, ventilátor ikon). */
+    MINERS,
 }
 
 // A "Napló mentése" fájlválasztó alapértelmezett helye: a Letöltések mappa.
@@ -161,6 +167,17 @@ private fun NetworkToolsApp(hub: AppHub) {
     val forcedTransport by hub.forcedTransport.collectAsState()
     val exportHistory by hub.exportHistory.collectAsState()
     val speedState by hub.speed.state.collectAsState()
+    val minerStatuses by hub.minerStatuses.collectAsState()
+    val lastAutoRunMs by hub.lastAutoRunMs.collectAsState()
+    // Percenként frissülő "most" - a Gyorsjelentés gomb "friss" pöttyének lejáratához.
+    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(30_000)
+            nowMs = System.currentTimeMillis()
+        }
+    }
+    var detailTestId by rememberSaveable { mutableStateOf<String?>(null) }
     val testGroups = remember { TestCatalog.groups(context) }
 
     // Fiókok: a nyitottság a panel szélességéhez viszonyított, szinkron állapot.
@@ -705,6 +722,42 @@ private fun NetworkToolsApp(hub: AppHub) {
                                 )
                             }
 
+                            Screen.TEST_DETAIL -> {
+                                val group = testGroups.firstOrNull { g -> g.tests.any { it.id == detailTestId } }
+                                val test = group?.tests?.firstOrNull { it.id == detailTestId }
+                                if (group == null || test == null) {
+                                    LaunchedEffect(Unit) { screen = Screen.HOME }
+                                } else {
+                                    TestDetailStripedPanel(
+                                        modifier = Modifier.fillMaxWidth().weight(1f),
+                                        test = test,
+                                        groupName = group.name,
+                                        jobs = testJobs,
+                                        summaries = quickReport,
+                                        loadDetail = { id -> hub.loadTestDetail(id) },
+                                        onRun = { hub.startTest(test.id) },
+                                        onOpenMiners = if (test.id == "miner_api") ({ screen = Screen.MINERS }) else null,
+                                    )
+                                }
+                            }
+
+                            Screen.MINERS -> {
+                                MinersStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    jobs = testJobs,
+                                    statuses = minerStatuses,
+                                    loadCandidates = { hub.loadMinerCandidates() },
+                                    onSearch = { hub.startTest("miner_api") },
+                                    onQuery = { ips ->
+                                        if (!hub.queryMiners(ips)) toast("A miner-lekérdezés már fut.")
+                                    },
+                                    onOpenWeb = { url ->
+                                        webReaderUrl = url
+                                        screen = Screen.WEB_READER
+                                    },
+                                )
+                            }
+
                             Screen.EXTERNAL_SERVICES -> {
                                 WorkInProgressStripedPanel(modifier = Modifier.fillMaxWidth().weight(1f), title = "KÜLSŐ SZOLGÁLTATÁSOK")
                             }
@@ -765,6 +818,11 @@ private fun NetworkToolsApp(hub: AppHub) {
                         groups = testGroups,
                         jobs = testJobs,
                         onRun = { test -> hub.startTest(test.id) },
+                        onOpen = { test ->
+                            detailTestId = test.id
+                            screen = Screen.TEST_DETAIL
+                            leftDrawer.close()
+                        },
                     )
                 }
 
@@ -798,6 +856,10 @@ private fun NetworkToolsApp(hub: AppHub) {
                             screen = Screen.SPEED_TEST
                             rightDrawer.close()
                         },
+                        onMiners = {
+                            screen = Screen.MINERS
+                            rightDrawer.close()
+                        },
                         onExternalServices = {
                             screen = Screen.EXTERNAL_SERVICES
                             rightDrawer.close()
@@ -813,7 +875,8 @@ private fun NetworkToolsApp(hub: AppHub) {
                         onAbout = {
                             screen = Screen.ABOUT
                             rightDrawer.close()
-                        }
+                        },
+                        quickReportFresh = lastAutoRunMs > 0 && nowMs - lastAutoRunMs < 5 * 60_000L,
                     )
                 }
 

@@ -1,4 +1,4 @@
-// Verzio: v0.1.0 - 2026-09-27
+// Verzio: v0.1.1 - 2026-09-27
 package hu.lordathis.networktools.speed
 
 import android.content.Context
@@ -483,7 +483,7 @@ class SpeedTestController(
         }
     }
 
-    private fun linkMbps(link: LinkSnapshot?): Int? = link?.ethernetMbps ?: link?.wifiRxMbps ?: link?.wifiLinkMbps
+    private fun linkMbps(link: LinkSnapshot?): Int? = link?.ethernetMbps ?: link?.phyDownMbps
 
     companion object {
         const val ID_BW = "speed_bw"

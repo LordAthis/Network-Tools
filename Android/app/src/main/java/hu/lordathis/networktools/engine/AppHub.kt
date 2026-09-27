@@ -1,4 +1,4 @@
-// Verzio: v0.7.0 - 2026-09-27
+// Verzio: v0.8.0 - 2026-09-27
 package hu.lordathis.networktools.engine
 
 import android.app.Application
@@ -13,6 +13,10 @@ import android.os.Environment
 import androidx.lifecycle.AndroidViewModel
 import hu.lordathis.networktools.BuildConfig
 import hu.lordathis.networktools.crypto.CryptoService
+import hu.lordathis.networktools.miner.MinerCandidate
+import hu.lordathis.networktools.miner.MinerService
+import hu.lordathis.networktools.miner.MinerStatus
+import hu.lordathis.networktools.miner.minerCandidates
 import hu.lordathis.networktools.network.ConnectionKind
 import hu.lordathis.networktools.network.NetworkForcer
 import hu.lordathis.networktools.network.NetworkIdentity
@@ -165,6 +169,12 @@ class AppHub(application: Application) : AndroidViewModel(application) {
         onAppLog = { log(it) },
         onSummaryRecorded = { refreshQuickReport() },
         onHostsObserved = { hosts -> speedStore.mergeLanHosts(quickCheckState.value.networkKey, hosts) },
+        recentAliveHosts = {
+            val now = System.currentTimeMillis()
+            speedStore.lanHosts(quickCheckState.value.networkKey)
+                .filter { now - it.lastSeenMs in 0..RECENT_ALIVE_MS }
+                .map { it.ip }
+        },
     )
     val testJobs: StateFlow<List<TestJob>> = testEngine.jobs
 
@@ -753,6 +763,89 @@ class AppHub(application: Application) : AndroidViewModel(application) {
 
     fun isTestRunning(testId: String): Boolean = testEngine.isRunning(testId)
 
+    /**
+     * Egy teszt részletes paneljének KORÁBBI adatai: a legutóbbi elmentett átirat (log/tests/, a fájl első
+     * sora "== <tesztnév> ==") és a jelenlegi hálózaton látott LAN-eszközök.
+     */
+    suspend fun loadTestDetail(testId: String): TestDetailData = withContext(Dispatchers.IO) {
+        val def = TestCatalog.find(appContext, testId)
+        var transcript: List<String> = emptyList()
+        var fileName: String? = null
+        var fileTime: Long? = null
+        if (def != null) {
+            val header = "== ${def.name} =="
+            val files = storage.testLogDir.listFiles { f -> f.isFile && f.name.endsWith(".log") }
+                ?.sortedByDescending { it.lastModified() }
+                ?.take(400)
+                ?: emptyList()
+            for (f in files) {
+                val first = try {
+                    f.bufferedReader(Charsets.UTF_8).use { it.readLine() }
+                } catch (e: Exception) {
+                    null
+                }
+                if (first?.trim() == header) {
+                    transcript = try {
+                        f.readLines(Charsets.UTF_8).drop(1).filter { it.isNotBlank() }.takeLast(400)
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
+                    fileName = f.name
+                    fileTime = f.lastModified()
+                    break
+                }
+            }
+        }
+        TestDetailData(
+            transcript = transcript,
+            transcriptFile = fileName,
+            transcriptTimeMs = fileTime,
+            hosts = speedStore.lanHosts(quickCheckState.value.networkKey),
+        )
+    }
+
+    // ==================================================================================
+    // Miner's (ventilátor ikon) - a hálózaton talált minerek részletes lekérdezése
+    // ==================================================================================
+
+    private val minerStatusState = MutableStateFlow<Map<String, MinerStatus>>(emptyMap())
+    /** A legutóbbi részletes lekérdezések eredménye IP szerint (a Miner's panel mutatja). */
+    val minerStatuses: StateFlow<Map<String, MinerStatus>> = minerStatusState.asStateFlow()
+
+    /** A jelenlegi hálózat miner-jelöltjei a korábbi tesztek adataiból. */
+    suspend fun loadMinerCandidates(): List<MinerCandidate> = withContext(Dispatchers.IO) {
+        minerCandidates(speedStore.lanHosts(quickCheckState.value.networkKey), speed.catalog)
+    }
+
+    /** A megadott minerek részletes lekérdezése (version/summary/pools/stats) - a teszt-motor keretében. */
+    fun queryMiners(ips: List<String>): Boolean {
+        if (ips.isEmpty()) return false
+        return testEngine.startCustom(MinerService.QUERY_TEST_ID, "Miner's lekérdezés", "MINERS") { emit ->
+            var ok = 0
+            for (ip in ips.distinct()) {
+                emit("$ip lekérdezése...")
+                val st = MinerService.query(ip)
+                minerStatusState.update { it + (ip to st) }
+                if (st.ok) ok++
+                emit("$ip: ${st.headline}")
+                st.pools.forEach { p -> emit("   pool: ${p.url} (${p.user}) - ${p.status}") }
+                if (st.ok) {
+                    speedStore.mergeLanHosts(
+                        quickCheckState.value.networkKey,
+                        listOf(
+                            hu.lordathis.networktools.speed.LanHostInfo(
+                                ip = ip,
+                                minerInfo = listOfNotNull(st.model, st.firmware).joinToString(" ").ifBlank { "miner" },
+                                lastSeenMs = System.currentTimeMillis(),
+                            )
+                        )
+                    )
+                }
+            }
+            "$ok/${ips.distinct().size} miner válaszolt"
+        }
+    }
+
     fun clearFinishedTests() = testEngine.clearFinished()
 
     // ==================================================================================
@@ -791,6 +884,7 @@ class AppHub(application: Application) : AndroidViewModel(application) {
 
     private companion object {
         const val MAX_LOG_LINES = 400
+        const val RECENT_ALIVE_MS = 10L * 60L * 1000L
         val LOG_NAME = Regex("""networktools-\d{4}-\d{2}-\d{2}\.log""")
         const val MAX_FEED_ENTRIES = 300
         const val BACKUP_INTERVAL_MS = 30L * 60L * 1000L

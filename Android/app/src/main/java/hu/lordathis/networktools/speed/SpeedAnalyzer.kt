@@ -1,4 +1,4 @@
-// Verzio: v0.1.0 - 2026-09-27
+// Verzio: v0.1.1 - 2026-09-27
 package hu.lordathis.networktools.speed
 
 import hu.lordathis.networktools.speed.BandwidthTester.Companion.fmt
@@ -40,7 +40,7 @@ object SpeedAnalyzer {
         val downInBand = plateauDown != null && plateauDown in FAST_ETHERNET_BAND
         val upInBand = plateauUp != null && plateauUp in FAST_ETHERNET_BAND
         val contractDown = if (isLanServer) null else contract?.downMbps
-        val linkClaimsGigabit = (link?.ethernetMbps ?: 0) >= 1000 || (link?.wifiRxMbps ?: link?.wifiLinkMbps ?: 0) >= 300
+        val linkClaimsGigabit = (link?.ethernetMbps ?: 0) >= 1000 || (link?.phyDownMbps ?: 0) >= 300
         if (downInBand || upInBand) {
             val which = listOfNotNull(if (downInBand) "letöltés" else null, if (upInBand) "feltöltés" else null).joinToString(" és ")
             when {
@@ -63,8 +63,8 @@ object SpeedAnalyzer {
         }
 
         // --- A WiFi mint szűk keresztmetszet --------------------------------------------------------
-        val wifiRx = link?.wifiRxMbps ?: link?.wifiLinkMbps
-        val wifiTx = link?.wifiTxMbps ?: link?.wifiLinkMbps
+        val wifiRx = link?.phyDownMbps
+        val wifiTx = link?.phyUpMbps
         val wifiDownCap = wifiRx?.let { it * WIFI_EFFICIENCY }
         val wifiUpCap = wifiTx?.let { it * WIFI_EFFICIENCY }
         if (link != null && link.isWifi) {

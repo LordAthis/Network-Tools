@@ -1,4 +1,4 @@
-// Verzio: v0.6.1 - 2026-09-24
+// Verzio: v0.7.0 - 2026-09-27
 package hu.lordathis.networktools.ui
 
 import androidx.compose.animation.core.animate
@@ -334,6 +334,7 @@ internal fun LeftDrawerPanel(
     groups: List<TestGroup>,
     jobs: List<TestJob>,
     onRun: (TestDef) -> Unit,
+    onOpen: (TestDef) -> Unit,
 ) {
     val shape = RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp)
     Column(
@@ -349,7 +350,8 @@ internal fun LeftDrawerPanel(
         // A Kezdőlapra a lap alján lévő házikó-gomb visz vissza, ezért itt nincs Kezdőlap gomb.
         // A Jegyzet a jobb oldali fiókba került. Az egyszerű/gyors tesztek automatikusan futnak
         // (lásd Beállítások > Hálózati beállítások) - itt csak a manuális, hosszabb tesztek vannak,
-        // csoportosítva, közvetlenül FUTTATÁS gombbal (nincs külön képernyőre navigálás).
+        // csoportosítva. A sorra koppintva a teszt SAJÁT panelje nyílik (korábbi adatok, felül FUTTATÁS
+        // gomb); CSAK a jobb oldali ▶ gomb indít azonnali futtatást.
         for (group in groups) {
             Text(
                 group.name.uppercase(),
@@ -361,7 +363,7 @@ internal fun LeftDrawerPanel(
             )
             for (test in group.tests) {
                 val latestJob = jobs.filter { it.testId == test.id }.maxByOrNull { it.startedMs }
-                DrawerTestRow(test = test, job = latestJob, onRun = { onRun(test) })
+                DrawerTestRow(test = test, job = latestJob, onRun = { onRun(test) }, onOpen = { onOpen(test) })
             }
         }
     }
@@ -372,6 +374,7 @@ private fun DrawerTestRow(
     test: TestDef,
     job: TestJob?,
     onRun: () -> Unit,
+    onOpen: () -> Unit,
 ) {
     val running = job?.status == JobStatus.RUNNING
     val shape = RoundedCornerShape(8.dp)
@@ -380,6 +383,8 @@ private fun DrawerTestRow(
             .fillMaxWidth()
             .clip(shape)
             .border(1.dp, Accent.copy(alpha = 0.35f), shape)
+            // A sor maga a panelt nyitja; a ▶ gomb saját kattintás-kezelője ezt megelőzi (nem nyit panelt).
+            .clickable(onClick = onOpen)
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -418,10 +423,13 @@ internal fun RightDrawerPanel(
     onLogOpen: () -> Unit,
     onSync: () -> Unit,
     onSpeedTest: () -> Unit,
+    onMiners: () -> Unit,
     onExternalServices: () -> Unit,
     onWebReader: () -> Unit,
     onSettings: () -> Unit,
     onAbout: () -> Unit,
+    /** Igaz, ha az automatikus tesztek 5 percen belül futottak - a Gyorsjelentés gombon pötty jelzi. */
+    quickReportFresh: Boolean = false,
 ) {
     val shape = RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)
     Column(
@@ -434,8 +442,9 @@ internal fun RightDrawerPanel(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        RailIconButton(icon = Icons.Filled.Bolt, contentDescription = "Gyorsjelentés", onClick = onQuickAccess)
+        RailIconButton(icon = Icons.Filled.Bolt, contentDescription = "Gyorsjelentés", onClick = onQuickAccess, badge = quickReportFresh)
         RailIconButton(icon = Icons.Filled.Speed, contentDescription = "Sebességteszt", onClick = onSpeedTest)
+        RailIconButton(icon = FanIcon, contentDescription = "Miner's", onClick = onMiners)
         RailIconButton(icon = Icons.AutoMirrored.Filled.FormatListBulleted, contentDescription = "Napló", onClick = onLogOpen)
         RailDivider()
         RailIconButton(icon = Icons.Filled.Edit, contentDescription = "Jegyzet", onClick = onNotes)
@@ -449,7 +458,7 @@ internal fun RightDrawerPanel(
 }
 
 @Composable
-private fun RailIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit) {
+private fun RailIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit, badge: Boolean = false) {
     Box(
         modifier = Modifier
             .size(30.dp)
@@ -460,6 +469,16 @@ private fun RailIconButton(icon: ImageVector, contentDescription: String, onClic
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = contentDescription, tint = Accent, modifier = Modifier.size(17.dp))
+        if (badge) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(3.dp)
+                    .size(6.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(AccentBlue)
+            )
+        }
     }
 }
 

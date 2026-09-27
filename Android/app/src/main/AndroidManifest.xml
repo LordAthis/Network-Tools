@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Verzio: v0.5.0 - 2026-09-22 -->
+<!-- Verzio: v0.6.0 - 2026-09-27 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Webolvasó (beépített böngésző), hálózati tesztek -->
@@ -22,7 +22,11 @@
 
     <!-- allowBackup=false: a Google automatikus (rejtett, fájlonként nem látható/törölhető) app-mentése ki van kapcsolva;
          csak látható, törölhető mentés van: Dokumentumok/NetworkTools és a kézi fájlba/e-mailbe mentés. -->
+    <!-- usesCleartextTraffic=true: a helyi hálózati eszközök (router, switch, miner, kamera) web-felülete
+         szinte mindig sima http:// - enélkül a Webolvasó (és a Miner's WEB-FELÜLET gombja) Android 9+ alatt
+         "ERR_CLEARTEXT_NOT_PERMITTED" hibával nem nyitná meg őket. -->
     <application
+        android:usesCleartextTraffic="true"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"

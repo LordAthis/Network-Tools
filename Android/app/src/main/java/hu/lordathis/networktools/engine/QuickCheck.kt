@@ -1,4 +1,4 @@
-// Verzio: v0.5.0 - 2026-09-22
+// Verzio: v0.5.1 - 2026-09-27
 package hu.lordathis.networktools.engine
 
 import hu.lordathis.networktools.network.ActiveConnection
@@ -56,7 +56,11 @@ class QuickCheckRunner(
 
             var deviceCount: Int? = null
             if (deepSweep) {
-                val wifiConn = connections.firstOrNull { it.kind == hu.lordathis.networktools.network.ConnectionKind.WIFI }
+                // WiFi VAGY vezetékes (USB-Ethernet) kapcsolaton is számolunk (korábban csak WiFi-n).
+                val wifiConn = connections.firstOrNull {
+                    it.kind == hu.lordathis.networktools.network.ConnectionKind.WIFI ||
+                        it.kind == hu.lordathis.networktools.network.ConnectionKind.ETHERNET
+                }
                 if (wifiConn != null) {
                     val ipv4 = identity.localAddresses(wifiConn.networkHandle).firstOrNull { it is java.net.Inet4Address }
                     if (ipv4 != null) {
