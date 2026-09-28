@@ -1,4 +1,4 @@
-<!-- Verzio: v0.9.0 - 2026-09-28 -->
+<!-- Verzio: v0.10.0 - 2026-09-28 -->
 # Network Tool's - Android
 
 A Network-Tools projekt Android változata (Kotlin + Jetpack Compose, minSdk 26). Ebben a körben az UI-váz mellé bekerült egy
@@ -19,7 +19,7 @@ valódi hálózati teszt-motor is (lásd lent) - korábban csak a kinézet és a
     kimenet (futás közben élőben, egyébként a legutóbbi mentett átirat) - futás-állapotváltáskor magától frissül.
   - **Jobb**: Gyorsjelentés (kék pötty = 5 percen belül futottak az automatikus tesztek), Sebességteszt,
     **Miner's (ventilátor ikon)**, Napló — Jegyzet, Külső szolgáltatások, Webolvasó — Mentés, Beállítások,
-    Névjegy (3 csoport, elválasztókkal).
+    **Eszközök (router ikon, v0.1.13)**, Névjegy (3 csoport, elválasztókkal).
 - **Alsó ikonsor - MINDEN képernyőn**: [mobilnet] — [közép] — [WiFi], mindig valódi, középre igazított elrendezésben.
   A mobilnet/WiFi ikonra koppintva a rendszer WiFi/mobiladat beállítása nyílik meg (a "forgalom erre kényszerítése"
   kapcsoló a Beállítások > Hálózati beállítások alatt van, nem az ikonsoron). A közép ikon MINDIG ugyanaz a
@@ -101,6 +101,30 @@ A jobb fiók **Sebességteszt** gombja. Minden rész a teszt-motor keretében fu
 - **Linkelés (előkészítés):** Network-Tools példányok egymásra találása UDP 47800-on (HELLO / PING) - helyben
   broadcast-tal, távol megadott címen. Beállítások > Linkelés. Terv és protokoll: [LINK_PROTOCOL.md](LINK_PROTOCOL.md).
 
+## Tor, Eszközök panel, nem-webes címek (v0.1.13)
+
+- **Tor az Orbot MELLÉ telepítve** (az app mérete nem nő): az Orbot (`org.torproject.android`) futtatja a Tor-klienst,
+  az app a helyi proxyját használja (HTTP 127.0.0.1:8118, SOCKS 127.0.0.1:9050). Induláskor az app megnézi, telepítve
+  van-e az Orbot, és a naplóba írja (ha egyszer megvolt, többször nem ellenőrzi induláskor). Kód: `tor/TorSupport.kt`.
+- **Tor-tesztek** (bal fiók, új „Tor” csoport): **TOR** - Orbot telepítve/fut, felépül-e a Tor, a check.torproject.org
+  szerint Tor-on megyünk-e, a közvetlen publikus IP (és CGNAT-állapota) összevetve a Tor kilépő IP-jével ·
+  **ONION** - a torproject.org hivatalos .onion címének megnyitása · **TORLAN** - Tor-portok (9050/9150/9051/9001/9030)
+  keresése a LAN élő eszközein (egy miner vagy más eszköz, amin Tor fut, rejtett távoli elérést adhat).
+- **Webolvasó hagyma gomb (Tor-mód)**: a felső gombsor 4. gombja (LISTA · KÖNYV · SSH · hagyma). Bekapcsolva a WebView
+  forgalma az Orbot proxyján megy, a **helyi címek kivételek** (127.x, localhost, 10.x, 172.16-31.x, 192.168.x,
+  169.254.x) - ezt egy felirat is jelzi. Ha az Orbot nincs telepítve vagy nem fut, az app indítást kér tőle, max. 15 s-ig
+  vár, majd kiírja a hibát és felajánlja az Orbot megnyitását (vagy a Play Áruházat). Az állapot megmarad
+  (`webTorMode`); Tor-módban az induló cím csak a proxy beállítása UTÁN töltődik be, és ha az Orbot addigra nem fut,
+  a mód kikapcsol és az oldal nem töltődik be (ne menjen ki kérés Tor nélkül). `.onion` cím beírásakor `http://`
+  egészül ki.
+- **Nem-webes címek**: `ssh://`, `telnet://` és más nem http(s) sémájú cím (a címsorban vagy egy oldal linkjeként)
+  NEM töltődik be weboldalként - az SSH-nézet nyílik egy rövid üzenettel (korábban `ssh://x`-ből `https://ssh://x` lett).
+  A címben lévő jelszó (`ssh://user:jelszo@host`) a naplóban/üzenetben `***`-ként jelenik meg.
+- **Eszközök panel** (jobb fiók, router ikon, a Beállítások alatt): felül középre igazított **gyorsgombok**
+  `…0.1 …1.1 …2.1 / …0.255 …1.255 …2.255` (teljes cím: 192.168.x.y) - a Linkek kezelése beállítás szerint nyílnak
+  (belső / külső / kérdez); alattuk a **jelenlegi hálózat elmentett eszközei** kattintható címekkel (FRISSÍTÉS gomb
+  a panel tetején). Kód: `ui/DevicesPanel.kt`.
+
 ## Miner's (v0.1.11 - ventilátor ikon a jobb fiókban)
 
 - Miner-jelöltek a korábbi tesztek adataiból: miner API válasz, nyitott 4028/4433 port, név / web-cím / SSH-banner
@@ -136,7 +160,8 @@ A jobb fiók **Sebességteszt** gombja. Minden rész a teszt-motor keretében fu
 | Mentés | működik: log-doboz + korábbi mentések listája (CSV-ben) + naplófájl-törlés egy helyen |
 | Sebességteszt | működik (v0.1.10): M1 sávszélesség, M2 stabilitás/csomagvesztés, M3 kábelteszt, LAN-mérés - lásd lent |
 | Külső szolgáltatások | "kidolgozás alatt" - a Beállításokban már van API-kulcs/MCP-cím mező hozzá |
-| Webolvasó | működik: egyszerűsített beépített böngésző (WebView), csak http(s) |
+| Webolvasó | működik: egyszerűsített beépített böngésző (WebView), csak http(s); Tor-mód (hagyma, Orbot kell) |
+| Eszközök | működik (v0.1.13): 192.168.x.y gyorsgombok + a jelenlegi hálózat eszközei |
 | Beállítások | lásd lent |
 | Névjegy | az app leírása, verzió, adatmappa |
 | Eredmények (alsó nyíl) | működik: az összes lezárt teszt átirata egy görgethető listában |
@@ -192,8 +217,10 @@ Android/app/src/main/java/hu/lordathis/networktools/
                          GatewayTest, MinerApiProbe, HttpTitleProbe, SshBannerProbe, ArpProbe, NetworkForcer
   profiles/               NetworkProfile/ProfileDevice, ProfileStore (SSID+BSSID egyeztetés), ProfileSecretCrypto
   notes/                 NoteStore (egy jegyzet = egy .md fájl)
+  tor/                   TorSupport: Orbot-segédek, TorWebProxy (WebView proxy), TorProbe (v0.1.13)
   ui/                    Theme, DrawerSystem, Panels (Kezdőlap+Gyorsjelentés+Visszajelzések), TestPanels (F1-F3),
-                         SyncPanel, BottomBar, SettingsPanel, NotesPanel, Dialogs, NetworkIcon, Background
+                         SyncPanel, BottomBar, SettingsPanel, NotesPanel, Dialogs, NetworkIcon, Background,
+                         WebReaderPanel, DevicesPanel, MinersPanel, OnionIcon, FanIcon, Links
   storage/ crypto/ settings/   tárolás, titkosítás, beállítás-tár, ExportHistoryStore
   notify/ service/       értesítési csatornák + hang; háttérben futó előtér-szolgáltatás
 Android/app/src/main/assets/tests_catalog.json   a tesztek neve + rövidkódja (a lapfülekhez)
