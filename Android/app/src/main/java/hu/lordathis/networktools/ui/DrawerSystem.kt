@@ -1,4 +1,4 @@
-// Verzio: v0.7.0 - 2026-09-27
+// Verzio: v0.8.0 - 2026-09-28
 package hu.lordathis.networktools.ui
 
 import androidx.compose.animation.core.animate
@@ -34,6 +34,7 @@ import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Router
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Sync
@@ -427,6 +428,8 @@ internal fun RightDrawerPanel(
     onExternalServices: () -> Unit,
     onWebReader: () -> Unit,
     onSettings: () -> Unit,
+    /** v0.1.13: Eszközök panel (gyorsgombok + a jelenlegi hálózat eszközei) - a Beállítások alatt. */
+    onDevices: () -> Unit,
     onAbout: () -> Unit,
     /** Igaz, ha az automatikus tesztek 5 percen belül futottak - a Gyorsjelentés gombon pötty jelzi. */
     quickReportFresh: Boolean = false,
@@ -453,6 +456,7 @@ internal fun RightDrawerPanel(
         RailDivider()
         RailIconButton(icon = Icons.Filled.Sync, contentDescription = "Mentés", onClick = onSync)
         RailIconButton(icon = Icons.Filled.Settings, contentDescription = "Beállítások", onClick = onSettings)
+        RailIconButton(icon = Icons.Filled.Router, contentDescription = "Eszközök", onClick = onDevices)
         RailIconButton(icon = Icons.Filled.Info, contentDescription = "Névjegy", onClick = onAbout)
     }
 }

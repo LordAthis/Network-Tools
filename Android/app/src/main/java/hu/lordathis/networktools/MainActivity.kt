@@ -1,4 +1,4 @@
-// Verzio: v0.9.0 - 2026-09-28
+// Verzio: v0.10.0 - 2026-09-28
 package hu.lordathis.networktools
 
 import android.Manifest
@@ -88,6 +88,7 @@ import hu.lordathis.networktools.ui.MinersStripedPanel
 import hu.lordathis.networktools.ui.TestDetailStripedPanel
 import hu.lordathis.networktools.ui.LinkSettingsSection
 import hu.lordathis.networktools.ui.LocalOpenLink
+import hu.lordathis.networktools.ui.DevicesStripedPanel
 import hu.lordathis.networktools.ui.Skin
 import hu.lordathis.networktools.ui.StarField
 import hu.lordathis.networktools.ui.SyncStripedPanel
@@ -123,6 +124,8 @@ private enum class Screen {
     TEST_DETAIL,
     /** Miner's (jobb fiók, ventilátor ikon). */
     MINERS,
+    /** v0.1.13: Eszközök (jobb fiók, router ikon, a Beállítások alatt). */
+    DEVICES,
 }
 
 // A "Napló mentése" fájlválasztó alapértelmezett helye: a Letöltések mappa.
@@ -187,6 +190,8 @@ private fun NetworkToolsApp(hub: AppHub) {
     var pendingLink by remember { mutableStateOf<String?>(null) }
     // Minden "belső" link-megnyitás új Webolvasó-példányt kér (így akkor is betölt, ha már a Webolvasón vagyunk).
     var webReaderOpenCount by remember { mutableIntStateOf(0) }
+    // Webolvasó Tor-mód (hagyma gomb) - tartós beállítás; a WebView proxy-felülírását a panel kezeli.
+    var webTorMode by remember { mutableStateOf(prefs.webTorMode) }
     val testGroups = remember { TestCatalog.groups(context) }
 
     // Fiókok: a nyitottság a panel szélességéhez viszonyított, szinkron állapot.
@@ -793,6 +798,14 @@ private fun NetworkToolsApp(hub: AppHub) {
                                 )
                             }
 
+                            Screen.DEVICES -> {
+                                DevicesStripedPanel(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    loadAddresses = { currentOnly -> hub.loadAddresses(currentOnly) },
+                                    onLog = { hub.log(it) },
+                                )
+                            }
+
                             Screen.EXTERNAL_SERVICES -> {
                                 WorkInProgressStripedPanel(modifier = Modifier.fillMaxWidth().weight(1f), title = "KÜLSŐ SZOLGÁLTATÁSOK")
                             }
@@ -819,6 +832,11 @@ private fun NetworkToolsApp(hub: AppHub) {
                                         loadAddresses = { currentOnly -> hub.loadAddresses(currentOnly) },
                                         deleteAddress = { entry -> hub.deleteAddress(entry) },
                                         loadSshInfo = { hub.loadSshInfo() },
+                                        torMode = webTorMode,
+                                        onTorModeChange = { on ->
+                                            webTorMode = on
+                                            prefs.webTorMode = on
+                                        },
                                     )
                                 }
                             }
@@ -912,6 +930,10 @@ private fun NetworkToolsApp(hub: AppHub) {
                         },
                         onSettings = {
                             screen = Screen.SETTINGS
+                            rightDrawer.close()
+                        },
+                        onDevices = {
+                            screen = Screen.DEVICES
                             rightDrawer.close()
                         },
                         onAbout = {

@@ -1,4 +1,4 @@
-// Verzio: v0.2.0 - 2026-09-28
+// Verzio: v0.3.0 - 2026-09-28
 package hu.lordathis.networktools.ui
 
 import android.graphics.Bitmap
@@ -32,10 +32,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -49,14 +51,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import hu.lordathis.networktools.engine.AddressEntry
+import hu.lordathis.networktools.tor.Orbot
+import hu.lordathis.networktools.tor.TorWebProxy
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ---------------------------------------------------------------------------
 // Webolvasó: egyszerűsített, beépített böngésző (WebView): címsor, megnyitás, vissza / előre /
@@ -66,19 +76,42 @@ import kotlinx.coroutines.launch
 //   - KÖNYV: minden valaha elmentett cím (minden hálózatról) - törlés gombbal, visszakérdezéssel;
 //   - SSH: leírás + a hálózatokon látott SSH-szolgáltatások és az SSH-t említő naplósorok.
 // A listák a WebView FÖLÉ nyílnak (a betöltött oldal megmarad alattuk).
+// v0.1.13:
+//   - negyedik gomb: HAGYMA (Tor-mód) - a WebView forgalma az Orbot HTTP-proxyján megy (a helyi címek
+//     kivételek); ha az Orbot nincs telepítve / nem fut, kiírja és felajánlja a megnyitását.
+//     Az állapot tartós (prefs.webTorMode); Tor-módban az induló címet csak a proxy beállítása UTÁN tölti be.
+//   - nem-webes címek (ssh://, telnet:// ...): nem tölti be weboldalként, hanem az SSH-nézetet nyitja
+//     egy rövid üzenettel (korábban "ssh://x"-ből "https://ssh://x" lett).
 // ---------------------------------------------------------------------------
+
+private val SCHEME_RE = Regex("^([a-zA-Z][a-zA-Z0-9+.-]*)://")
+
+/** A cím sémája, ha az NEM http/https (pl. "ssh", "telnet"); különben null. */
+internal fun nonWebScheme(raw: String): String? {
+    val scheme = SCHEME_RE.find(raw.trim())?.groupValues?.get(1)?.lowercase() ?: return null
+    return if (scheme == "http" || scheme == "https") null else scheme
+}
+
+/** Naplóba/üzenetbe írható cím: az esetleges jelszó (ssh://user:jelszo@host) helyett ***. */
+private fun redactUserInfo(address: String): String = address.replace(Regex("://([^/@:\\s]+):[^/@\\s]+@"), "://$1:***@")
 
 /** A beírt szövegből megnyitható cím: "https://" nélküli tartomány -> https, IP -> http, szóközös szöveg -> keresés. */
 internal fun normalizeWebInput(raw: String): String {
     val t = raw.trim()
     if (t.isEmpty()) return ""
     if (t.startsWith("http://", ignoreCase = true) || t.startsWith("https://", ignoreCase = true)) return t
+    if (nonWebScheme(t) != null) return "" // ssh:// telnet:// ... - nem weboldal (lásd openUrl)
     linkTarget(t)?.let { return it } // puszta IP(:port) -> http://
+    // .onion cím: a rejtett szolgáltatások szinte mindig sima http-t adnak (a Tor maga titkosít).
+    if (!t.contains(' ') && t.substringBefore('/').substringBefore(':').endsWith(".onion", ignoreCase = true)) return "http://$t"
     val looksLikeAddress = !t.contains(' ') && t.contains('.')
     return if (looksLikeAddress) "https://$t" else "https://duckduckgo.com/?q=" + Uri.encode(t)
 }
 
 private enum class ReaderMode { WEB, LIST, BOOK, SSH }
+
+/** A Tor-mód bekapcsolásának akadálya (párbeszédablakot kap). */
+private enum class TorProblem { NOT_INSTALLED, NOT_RUNNING }
 
 @Composable
 internal fun WebReaderStripedPanel(
@@ -91,18 +124,41 @@ internal fun WebReaderStripedPanel(
     loadAddresses: suspend (currentOnly: Boolean) -> List<AddressEntry> = { emptyList() },
     deleteAddress: suspend (AddressEntry) -> Unit = {},
     loadSshInfo: suspend () -> List<String> = { emptyList() },
+    /** Tor-mód (hagyma gomb) - az állapotot a hívó tartja és menti (prefs.webTorMode). */
+    torMode: Boolean = false,
+    onTorModeChange: (Boolean) -> Unit = {},
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var input by remember { mutableStateOf(startUrl) }
     var progress by remember { mutableIntStateOf(0) }
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var mode by remember { mutableStateOf(ReaderMode.WEB) }
+    var nonWebNotice by remember { mutableStateOf<String?>(null) }
+    var torBusy by remember { mutableStateOf(false) }
+    var torMessage by remember { mutableStateOf<String?>(null) }
+    var torProblem by remember { mutableStateOf<TorProblem?>(null) }
+
+    /** Nem-webes cím (ssh://, telnet:// ...): nem töltjük be, hanem az SSH-nézet nyílik egy rövid üzenettel. */
+    fun showNonWeb(address: String) {
+        val shown = redactUserInfo(address.trim())
+        val scheme = nonWebScheme(address) ?: "?"
+        nonWebNotice = "\"$shown\" nem weboldal ($scheme://) - a Webolvasó nem tölti be. " +
+            "Beépített SSH-kliens még nincs; lent láthatod, hol van SSH-szolgáltatás a hálózataidon."
+        mode = ReaderMode.SSH
+        onLog("Webolvasó: nem-webes cím ($scheme://), SSH-nézet: $shown")
+    }
+
     val openUrl: (String) -> Unit = { raw ->
         val url = normalizeWebInput(raw)
-        if (url.isNotEmpty()) {
+        if (nonWebScheme(raw) != null) {
+            showNonWeb(raw)
+        } else if (url.isNotEmpty()) {
             input = url
             mode = ReaderMode.WEB
+            nonWebNotice = null
             webView?.loadUrl(url)
             onUrlChange(url)
             onLog("Webolvasó: megnyitás: $url")
@@ -112,6 +168,76 @@ internal fun WebReaderStripedPanel(
     // Vissza gomb: előbb a lista-nézet zárul, aztán az oldal előzményében lép vissza.
     BackHandler(enabled = mode != ReaderMode.WEB) { mode = ReaderMode.WEB }
     BackHandler(enabled = mode == ReaderMode.WEB && canGoBack) { webView?.goBack() }
+
+    // ------------------------------------------------------------------ Tor-mód (hagyma)
+
+    /** Orbot telepítve és a proxyja fut? Ha nem fut, indítást kér, és legfeljebb ~15 s-ig vár. null = rendben. */
+    suspend fun ensureOrbot(): TorProblem? {
+        if (!Orbot.isInstalled(context)) return TorProblem.NOT_INSTALLED
+        if (withContext(Dispatchers.IO) { Orbot.proxyReachable() }) return null
+        torMessage = "Az Orbot proxyja nem fut - indítást kérek az Orbottól (max. 15 s)..."
+        Orbot.requestStart(context)
+        repeat(15) {
+            delay(1_000)
+            if (withContext(Dispatchers.IO) { Orbot.proxyReachable() }) return null
+        }
+        return TorProblem.NOT_RUNNING
+    }
+
+    /**
+     * Tor-mód bekapcsolása. [loadAfter]: a proxy beállítása után betöltendő cím (az induló cím Tor-módban);
+     * null esetén a jelenlegi oldal töltődik újra. [restoring]: a mentett Tor-mód visszaállítása a panel megnyitásakor.
+     */
+    fun turnTorOn(loadAfter: String?, restoring: Boolean) {
+        if (torBusy) return
+        if (!TorWebProxy.isSupported()) {
+            torMessage = "Ez a telefon WebView-ja nem támogatja a proxy-beállítást - a Tor-mód nem kapcsolható be. " +
+                "Frissítsd az \"Android System WebView\" alkalmazást."
+            onLog("Webolvasó: Tor-mód nem támogatott (WebView PROXY_OVERRIDE hiányzik).")
+            if (torMode) onTorModeChange(false)
+            return
+        }
+        torBusy = true
+        scope.launch {
+            val problem = ensureOrbot()
+            if (problem != null) {
+                torBusy = false
+                val base = if (problem == TorProblem.NOT_INSTALLED) {
+                    "Az Orbot (Tor) nincs telepítve - a Tor-módhoz szükséges."
+                } else {
+                    "Az Orbot nem fut (a proxyja nem érhető el: 127.0.0.1:${Orbot.HTTP_PROXY_PORT}) - indítsd el és csatlakozz."
+                }
+                torMessage = if (restoring) "$base A Tor-mód kikapcsolt, az oldal NEM töltődött be (MEGNYITÁS: közvetlenül nyílik)." else base
+                onLog("Webolvasó: Tor-mód nem kapcsolható be - $base")
+                if (torMode) onTorModeChange(false)
+                torProblem = problem
+                return@launch
+            }
+            TorWebProxy.enable(ContextCompat.getMainExecutor(context)) {
+                torBusy = false
+                torMessage = null
+                if (!torMode) onTorModeChange(true)
+                onLog("Webolvasó: Tor-mód BE - a forgalom az Orbot proxyján megy (127.0.0.1:${Orbot.HTTP_PROXY_PORT}).")
+                if (!loadAfter.isNullOrBlank()) webView?.loadUrl(loadAfter) else webView?.reload()
+            }
+        }
+    }
+
+    fun turnTorOff() {
+        if (torBusy) return
+        TorWebProxy.disable(ContextCompat.getMainExecutor(context)) {
+            torMessage = null
+            onTorModeChange(false)
+            onLog("Webolvasó: Tor-mód KI - közvetlen kapcsolat.")
+            webView?.reload()
+        }
+    }
+
+    // A mentett Tor-mód visszaállítása: a proxy-felülírás az app újraindításakor elveszik, ezért a panel
+    // megnyitásakor újra beállítjuk - az induló címet csak ezután töltjük be (ne menjen ki kérés Tor nélkül).
+    LaunchedEffect(Unit) {
+        if (torMode) turnTorOn(loadAfter = normalizeWebInput(startUrl).ifBlank { null }, restoring = true)
+    }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -140,8 +266,31 @@ internal fun WebReaderStripedPanel(
                     mode = if (mode == ReaderMode.BOOK) ReaderMode.WEB else ReaderMode.BOOK
                 }
                 ReaderModeButton(null, "SSH", "SSH", mode == ReaderMode.SSH) {
+                    nonWebNotice = null
                     mode = if (mode == ReaderMode.SSH) ReaderMode.WEB else ReaderMode.SSH
                 }
+                ReaderModeButton(OnionIcon, null, "Tor-mód (Orbot)", torMode || torBusy) {
+                    if (torMode) turnTorOff() else turnTorOn(loadAfter = null, restoring = false)
+                }
+            }
+            if (torMode || torBusy) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    if (torBusy && !torMode) {
+                        "TOR: csatlakozás az Orbothoz..."
+                    } else {
+                        "TOR-MÓD: a forgalom az Orbot proxyján (127.0.0.1:${Orbot.HTTP_PROXY_PORT}) megy. " +
+                            "A helyi címek (192.168.x, 10.x, 172.16-31.x, 169.254.x, localhost) kivételek - közvetlenül nyílnak."
+                    },
+                    color = AccentBlue,
+                    fontSize = 9.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            torMessage?.let {
+                Spacer(Modifier.height(4.dp))
+                Text(it, color = WarnColor, fontSize = 9.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
             Spacer(Modifier.height(6.dp))
             OutlinedTextField(
@@ -191,7 +340,11 @@ internal fun WebReaderStripedPanel(
                             webViewClient = object : WebViewClient() {
                                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                                     val scheme = request.url.scheme?.lowercase()
-                                    return scheme != "http" && scheme != "https"
+                                    if (scheme == "http" || scheme == "https") return false
+                                    // Egy oldalon lévő ssh:// telnet:// ... link: SSH-nézet üzenettel (nem csendes semmi).
+                                    val target = request.url.toString()
+                                    if (target.contains("://")) showNonWeb(target)
+                                    return true
                                 }
 
                                 override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
@@ -221,7 +374,9 @@ internal fun WebReaderStripedPanel(
                                     if (u != null && !title.isNullOrBlank()) onTitle(u, title)
                                 }
                             }
-                            if (startUrl.isNotBlank()) loadUrl(normalizeWebInput(startUrl))
+                            // Tor-módban az induló cím a proxy beállítása után töltődik be (lásd fent).
+                            val first = normalizeWebInput(startUrl)
+                            if (first.isNotBlank() && !torMode) loadUrl(first)
                         }
                     },
                     update = { view -> if (webView !== view) webView = view },
@@ -238,7 +393,7 @@ internal fun WebReaderStripedPanel(
                         when (mode) {
                             ReaderMode.LIST -> AddressListView(currentOnly = true, loadAddresses, deleteAddress, openUrl)
                             ReaderMode.BOOK -> AddressListView(currentOnly = false, loadAddresses, deleteAddress, openUrl)
-                            ReaderMode.SSH -> SshInfoView(loadSshInfo)
+                            ReaderMode.SSH -> SshInfoView(loadSshInfo, nonWebNotice)
                             ReaderMode.WEB -> Unit
                         }
                     }
@@ -246,6 +401,43 @@ internal fun WebReaderStripedPanel(
             }
         }
     }
+
+    torProblem?.let { problem ->
+        TorProblemDialog(
+            problem = problem,
+            onOpenOrbot = {
+                torProblem = null
+                Orbot.openApp(context) // ha nincs telepítve, a Play Áruház nyílik
+            },
+            onDismiss = { torProblem = null },
+        )
+    }
+}
+
+@Composable
+private fun TorProblemDialog(problem: TorProblem, onOpenOrbot: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (problem == TorProblem.NOT_INSTALLED) "Az Orbot nincs telepítve" else "Az Orbot nem fut") },
+        text = {
+            Text(
+                if (problem == TorProblem.NOT_INSTALLED) {
+                    "A Tor-módhoz az Orbot (Tor Project) app kell a telefonra - az app mérete így nem nő. " +
+                        "Telepítés után indítsd el, csatlakozz, majd kapcsold be újra a hagymát."
+                } else {
+                    "Az Orbot telepítve van, de a proxyja nem válaszol. Nyisd meg, csatlakozz (ha a szolgáltató " +
+                        "blokkolja a Tor-t, kapcsold be a hidakat: obfs4 / Snowflake), majd kapcsold be újra a hagymát."
+                },
+                fontSize = 13.sp,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onOpenOrbot) {
+                Text(if (problem == TorProblem.NOT_INSTALLED) "TELEPÍTÉS" else "ORBOT MEGNYITÁSA", color = Accent)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("MÉGSEM", color = TextDim) } },
+    )
 }
 
 @Composable
@@ -328,7 +520,7 @@ private fun AddressListView(
 }
 
 @Composable
-private fun AddressRow(e: AddressEntry, showDelete: Boolean, onOpen: () -> Unit, onDelete: () -> Unit) {
+internal fun AddressRow(e: AddressEntry, showDelete: Boolean, onOpen: () -> Unit, onDelete: () -> Unit) {
     val shape = RoundedCornerShape(8.dp)
     Row(
         modifier = Modifier
@@ -369,13 +561,26 @@ private fun AddressRow(e: AddressEntry, showDelete: Boolean, onOpen: () -> Unit,
 }
 
 @Composable
-private fun SshInfoView(loadSshInfo: suspend () -> List<String>) {
+private fun SshInfoView(loadSshInfo: suspend () -> List<String>, notice: String? = null) {
     var lines by remember { mutableStateOf<List<String>?>(null) }
     LaunchedEffect(Unit) { lines = loadSshInfo() }
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 6.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        if (notice != null) {
+            Text(
+                notice,
+                color = WarnColor,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, WarnColor.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                    .padding(8.dp),
+            )
+            Spacer(Modifier.height(4.dp))
+        }
         Text("SSH", color = Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
         Text(
             "Az SSH (Secure Shell, 22-es port) titkosított parancssori belépés egy eszközre - routerek, NAS-ok, Linuxos " +
