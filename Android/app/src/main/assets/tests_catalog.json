@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "auto_tests": [
     {
       "id": "adapter_info",
@@ -105,6 +105,30 @@
           "name": "Miner API proba",
           "shortCode": "MINER",
           "description": "cgminer/bmminer-kompatibilis miner API (4028/4433 port) keresése - Antminer, Whatsminer, Avalon és társaik. A találatok a Miner's panelen részletesen lekérdezhetők."
+        }
+      ]
+    },
+    {
+      "id": "tor",
+      "name": "Tor",
+      "tests": [
+        {
+          "id": "tor_check",
+          "name": "Tor-elerhetoseg + kilepo IP / CGNAT",
+          "shortCode": "TOR",
+          "description": "Az Orbot (Tor) telepítve van-e és fut-e; felépül-e a Tor-kapcsolat (mennyi idő alatt); a check.torproject.org szerint Tor-on megyünk-e; a KÖZVETLEN publikus IP (és CGNAT-állapota) összevetve a Tor KILÉPŐ IP-jével. Ha a Tor nem épül fel, a szolgáltató blokkolhatja - ilyenkor az Orbotban hidak (obfs4/Snowflake) segítenek."
+        },
+        {
+          "id": "tor_onion",
+          "name": ".onion elerhetoseg (teszt)",
+          "shortCode": "ONION",
+          "description": "Egy ismert .onion oldal (a torproject.org hivatalos onion-címe) megnyitása az Orbot proxyján át: sikerül-e, és mennyi idő alatt. A Webolvasó Tor-módjában (hagyma ikon) .onion oldalak is megnyithatók."
+        },
+        {
+          "id": "tor_lan",
+          "name": "Tor-szolgaltatas keresese a LAN-on",
+          "shortCode": "TORLAN",
+          "description": "A hálózaton élő eszközökön keresi a Tor jellemző portjait: 9050/9150 (Tor-kliens SOCKS), 9051 (vezérlőport), 9001 (relé ORPort), 9030 (DirPort). Egy miner vagy más eszköz, amin Tor fut, rejtett távoli elérést is adhat (gyártói hozzáférés, de fertőzés jele is lehet) - ha nem te telepítetted, érdemes kivizsgálni."
         }
       ]
     }

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Verzio: v0.7.0 - 2026-09-28 -->
+<!-- Verzio: v0.8.0 - 2026-09-28 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Webolvasó (beépített böngésző), hálózati tesztek -->
@@ -24,6 +24,11 @@
 
     <!-- allowBackup=false: a Google automatikus (rejtett, fájlonként nem látható/törölhető) app-mentése ki van kapcsolva;
          csak látható, törölhető mentés van: Dokumentumok/NetworkTools és a kézi fájlba/e-mailbe mentés. -->
+    <!-- Android 11+ csomag-láthatóság: az Orbot (Tor) telepítettségének ellenőrzéséhez -->
+    <queries>
+        <package android:name="org.torproject.android" />
+    </queries>
+
     <!-- usesCleartextTraffic=true: a helyi hálózati eszközök (router, switch, miner, kamera) web-felülete
          szinte mindig sima http:// - enélkül a Webolvasó (és a Miner's WEB-FELÜLET gombja) Android 9+ alatt
          "ERR_CLEARTEXT_NOT_PERMITTED" hibával nem nyitná meg őket. -->

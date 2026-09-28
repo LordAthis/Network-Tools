@@ -1,4 +1,4 @@
-// Verzio: v0.4.5 - 2026-09-28
+// Verzio: v0.4.6 - 2026-09-28
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -8,7 +8,7 @@ plugins {
 // EGYETLEN kozponti verzio-forras (ebbol lesz a BuildConfig.VERSION_NAME is, azt olvassa a
 // fejlec/Nevjegy/naplok). A versionCode a verziobol szamolodik (0.1.5555 -> 15555), igy minden
 // magasabb verzio automatikusan frissiteskent telepitheto a regire (in-place update).
-val appVersionName = "0.1.12"
+val appVersionName = "0.1.13"
 val appVersionParts = appVersionName.split(".").map { it.toInt() }
 val appVersionCode = appVersionParts[0] * 100_000_000 + appVersionParts[1] * 10_000 + appVersionParts[2]
 
@@ -75,6 +75,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.4")
     implementation("androidx.activity:activity-ktx:1.9.2")
+    // Webolvasó Tor-mód: WebView proxy-felülírás (ProxyController)
+    implementation("androidx.webkit:webkit:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")

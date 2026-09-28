@@ -1,4 +1,4 @@
-// Verzio: v0.9.0 - 2026-09-28
+// Verzio: v0.10.0 - 2026-09-28
 package hu.lordathis.networktools.engine
 
 import android.app.Application
@@ -177,6 +177,7 @@ class AppHub(application: Application) : AndroidViewModel(application) {
                 .filter { now - it.lastSeenMs in 0..RECENT_ALIVE_MS }
                 .map { it.ip }
         },
+        isOrbotInstalled = { hu.lordathis.networktools.tor.Orbot.isInstalled(appContext) },
     )
     val testJobs: StateFlow<List<TestJob>> = testEngine.jobs
 
@@ -288,6 +289,16 @@ class AppHub(application: Application) : AndroidViewModel(application) {
 
         // Induláskori GYORS ellenőrzés: milyen hálózat(ok) érhetők el, ismerős-e, hány élő eszköz -
         // azonnal a Kezdőlapra és a Gyorsjelentésbe. Utána a hálózatváltásokat egy NetworkCallback figyeli.
+        // Orbot (Tor) - induláskori ellenőrzés; ha egyszer megvolt, legközelebb nem kell újra megnézni.
+        if (!prefs.orbotInstalledSeen) {
+            if (hu.lordathis.networktools.tor.Orbot.isInstalled(appContext)) {
+                prefs.orbotInstalledSeen = true
+                log("Orbot (Tor) telepítve - a Tor-tesztek és a Webolvasó Tor-módja használható.")
+            } else {
+                log("Orbot (Tor) nincs telepítve - a Tor-funkciókhoz telepítsd a Play Áruházból (org.torproject.android).")
+            }
+        }
+
         if (prefs.linkVisible) {
             testScope.launch { link.setVisible(true) }
         }

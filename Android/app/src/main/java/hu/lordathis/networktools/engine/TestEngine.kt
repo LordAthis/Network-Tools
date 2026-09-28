@@ -1,4 +1,4 @@
-// Verzio: v0.6.1 - 2026-09-27
+// Verzio: v0.7.0 - 2026-09-28
 package hu.lordathis.networktools.engine
 
 import hu.lordathis.networktools.network.ArpProbe
@@ -64,6 +64,8 @@ class TestEngine(
      * (ez volt a README-ben jelzett "ismert tervezési hiba").
      */
     private val recentAliveHosts: () -> List<String> = { emptyList() },
+    /** Telepítve van-e az Orbot (Tor) - a Tor-tesztekhez. */
+    private val isOrbotInstalled: () -> Boolean = { false },
 ) {
     private val jobsState = MutableStateFlow<List<TestJob>>(emptyList())
     val jobs: StateFlow<List<TestJob>> = jobsState.asStateFlow()
@@ -182,6 +184,9 @@ class TestEngine(
         "wan_test" -> runWanTest(emit)
         "dns_timing" -> runDnsTiming(emit)
         "arp_spike" -> runArpSpike(emit)
+        "tor_check" -> runTorCheck(emit)
+        "tor_onion" -> runTorOnion(emit)
+        "tor_lan" -> runTorLan(emit)
         else -> {
             emit("Ismeretlen teszt-azonosító: $testId")
             "Ismeretlen teszt"
@@ -444,6 +449,96 @@ class TestEngine(
             emit("A DNS-feloldás sikertelen (${r.hostname}).")
             "Sikertelen"
         }
+    }
+
+    // ------------------------------------------------------------------ Tor (Orbot mellé telepítve)
+
+    /** Orbot megléte + fut-e a proxyja; false-nál már ki is írta a teendőt. */
+    private fun orbotReady(emit: (String) -> Unit): Boolean {
+        if (!isOrbotInstalled()) {
+            emit("Az Orbot (Tor) nincs telepítve - a Tor-tesztekhez telepítsd a Play Áruházból (org.torproject.android).")
+            return false
+        }
+        emit("Orbot telepítve.")
+        if (!hu.lordathis.networktools.tor.Orbot.proxyReachable()) {
+            emit("Az Orbot proxyja (127.0.0.1:${hu.lordathis.networktools.tor.Orbot.HTTP_PROXY_PORT}) nem fut - indítsd el az Orbotot (Csatlakozás), majd futtasd újra.")
+            return false
+        }
+        emit("Orbot proxy fut (127.0.0.1:${hu.lordathis.networktools.tor.Orbot.HTTP_PROXY_PORT}).")
+        return true
+    }
+
+    private suspend fun runTorCheck(emit: (String) -> Unit): String {
+        val direct = fetchPublicIp()
+        if (direct != null) {
+            val cg = when {
+                isCgnatRange(direct) -> "CGNAT (100.64.0.0/10)"
+                isPrivateRange(direct) -> "magán tartomány (NAT mögött)"
+                else -> "valódi publikus cím"
+            }
+            emit("Közvetlen publikus IP: $direct - $cg")
+        } else {
+            emit("A közvetlen publikus IP nem kérdezhető le.")
+        }
+        if (!orbotReady(emit)) return if (isOrbotInstalled()) "Orbot telepítve, de nem fut" else "Orbot nincs telepítve"
+        emit("Tor-kapcsolat ellenőrzése (check.torproject.org, max. 45 s)...")
+        val r = hu.lordathis.networktools.tor.TorProbe.fetch(hu.lordathis.networktools.tor.TorProbe.CHECK_URL, viaTor = true, timeoutMs = 45_000)
+        if (!r.ok) {
+            emit("Sikertelen (${r.millis} ms): ${r.error ?: "HTTP ${r.code}"}")
+            emit("Ha az Orbot nem tud csatlakozni, a szolgáltató blokkolhatja a Tor-t: az Orbotban kapcsold be a hidakat (obfs4 / Snowflake).")
+            return "Tor NEM érhető el"
+        }
+        val (isTor, exitIp) = hu.lordathis.networktools.tor.TorProbe.parseCheck(r.body)
+        emit("Válasz ${r.millis} ms alatt - Tor-on megy: ${if (isTor) "IGEN" else "NEM"}, kilépő IP: ${exitIp ?: "?"}")
+        if (direct != null && exitIp != null) {
+            emit(if (direct == exitIp) "FIGYELEM: a kilépő IP megegyezik a közvetlennel - a forgalom NEM a Tor-on ment." else "A kilépő IP eltér a közvetlentől - rendben.")
+        }
+        return if (isTor) "Tor OK (${r.millis} ms), kilépő IP: ${exitIp ?: "?"}" else "Válaszolt, de NEM Tor-on"
+    }
+
+    private suspend fun runTorOnion(emit: (String) -> Unit): String {
+        if (!orbotReady(emit)) return if (isOrbotInstalled()) "Orbot telepítve, de nem fut" else "Orbot nincs telepítve"
+        val url = hu.lordathis.networktools.tor.TorProbe.ONION_TEST_URL
+        emit("Megnyitás: $url (max. 60 s)...")
+        val r = hu.lordathis.networktools.tor.TorProbe.fetch(url, viaTor = true, timeoutMs = 60_000, maxBody = 2_000)
+        return if (r.ok) {
+            val title = r.body?.let { Regex("<title>(.*?)</title>", RegexOption.IGNORE_CASE).find(it)?.groupValues?.get(1) }
+            emit("Sikerült: HTTP ${r.code}, ${r.millis} ms" + (title?.let { ", cím: \"$it\"" } ?: ""))
+            ".onion elérhető (${r.millis} ms)"
+        } else {
+            emit("Sikertelen (${r.millis} ms): ${r.error ?: "HTTP ${r.code}"}")
+            ".onion NEM érhető el"
+        }
+    }
+
+    private suspend fun runTorLan(emit: (String) -> Unit): String {
+        val hosts = aliveHosts(emit) ?: return "Nincs vizsgálható alháló"
+        if (hosts.isEmpty()) {
+            emit("Nincs élő eszköz.")
+            return "Nincs élő eszköz"
+        }
+        val torPorts = mapOf(
+            9050 to "Tor-kliens SOCKS",
+            9150 to "Tor Browser SOCKS",
+            9051 to "Tor vezérlőport",
+            9001 to "Tor relé ORPort",
+            9030 to "Tor DirPort",
+        )
+        emit("Tor-portok keresése ${hosts.size} eszközön: ${torPorts.keys.joinToString(", ")}")
+        var suspicious = 0
+        for (host in hosts) {
+            val open = PortScanner.scanHost(host, PortScanTarget.ListPorts(torPorts.keys.toList()), concurrency = 8, timeoutMs = 400)
+            if (open.isNotEmpty()) {
+                suspicious++
+                emit("GYANÚS: $host - " + open.joinToString("; ") { "${it.port} (${torPorts[it.port]})" })
+            }
+        }
+        if (suspicious > 0) {
+            emit("Ha ezeken az eszközökön nem te telepítettél Tor-t: rejtett távoli elérés lehet (gyártói \"hátsó ajtó\" vagy fertőzés). Érdemes firmware-t ellenőrizni/frissíteni, és a routeren a kimenő forgalmát figyelni.")
+        } else {
+            emit("Egyik eszközön sem találtam nyitott Tor-portot. (Egy csak KIFELÉ kapcsolódó Tor-kliens portot nem nyit - azt a router forgalmi naplója mutatná.)")
+        }
+        return if (suspicious > 0) "$suspicious eszközön Tor-port [FIGYELEM]" else "Nincs Tor-port a LAN-on"
     }
 
     // ------------------------------------------------------------------ ARP-spike

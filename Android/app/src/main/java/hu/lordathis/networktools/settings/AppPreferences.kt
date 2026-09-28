@@ -1,4 +1,4 @@
-// Verzio: v0.8.0 - 2026-09-28
+// Verzio: v0.9.0 - 2026-09-28
 package hu.lordathis.networktools.settings
 
 import android.content.Context
@@ -159,6 +159,21 @@ class AppPreferences(context: Context) {
         get() = prefs.getString(KEY_LINK_REMOTE, "") ?: ""
         set(value) = prefs.edit().putString(KEY_LINK_REMOTE, value).apply()
 
+    // ------------------------------------------------------------------ Tor (Orbot)
+
+    /**
+     * Az Orbot telepítettségének induláskori ellenőrzése: ha egyszer megvan, legközelebb nem kell újra
+     * ellenőrizni (true). Ha nincs meg, minden induláskor újra megnézi.
+     */
+    var orbotInstalledSeen: Boolean
+        get() = prefs.getBoolean(KEY_ORBOT_SEEN, false)
+        set(value) = prefs.edit().putBoolean(KEY_ORBOT_SEEN, value).apply()
+
+    /** A Webolvasó Tor-módja (hagyma ikon) - alapból KI. */
+    var webTorMode: Boolean
+        get() = prefs.getBoolean(KEY_WEB_TOR, false)
+        set(value) = prefs.edit().putBoolean(KEY_WEB_TOR, value).apply()
+
     // ------------------------------------------------------------------ Sebességteszt
 
     /** M1 szerver: "CLOUDFLARE" | "CUSTOM" | "LAN_SERVER". */
@@ -247,6 +262,8 @@ class AppPreferences(context: Context) {
         private const val KEY_AUTO_TESTS_ENABLED = "auto_tests_enabled"
         private const val KEY_AUTO_TESTS_INTERVAL = "auto_tests_interval"
         private const val KEY_LAST_AUTO_RUN = "last_auto_run"
+        private const val KEY_ORBOT_SEEN = "orbot_installed_seen"
+        private const val KEY_WEB_TOR = "web_tor_mode"
         private const val KEY_LINK_MODE = "link_mode"
         private const val KEY_LINK_NODE_ID = "link_node_id"
         private const val KEY_LINK_NODE_NAME = "link_node_name"
